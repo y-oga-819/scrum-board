@@ -79,6 +79,7 @@ figcaption{font-family:var(--mono); font-size:11.5px; color:var(--muted); margin
 .chip.in{background:var(--accent-soft); color:var(--accent)}
 .chip.out{background:var(--signal-soft); color:var(--signal)}
 .chip.open{background:var(--team-soft); color:var(--team)}
+.chip.pre{background:var(--signal); color:#FFFFFF; font-weight:600}
 
 hr.div{border:none; border-top:1px solid var(--rule); margin:44px 0 0}
 
@@ -158,7 +159,7 @@ hr.div{border:none; border-top:1px solid var(--rule); margin:44px 0 0}
         <tr><td>認証</td><td>Microsoft Entra ID（MSAL によるサインイン ＋ API側でJWT検証）</td></tr>
         <tr><td>ホスティング</td><td>Azure App Service（フロントとAPIを同居）</td></tr>
         <tr><td>初期コスト</td><td><strong>無料枠内</strong>（App Service F1 ／ Cosmos DB 無料レベル ／ Entra ID Free）</td></tr>
-        <tr><td>実装規模</td><td>PBI 24項目／5マイルストーン（<a href="#s12">12章</a>）</td></tr>
+        <tr><td>実装規模</td><td>PBI 30項目／6マイルストーン（<a href="#s12">12章</a>）。うち6項目は設計レビューで追加</td></tr>
       </tbody>
     </table>
   </div>
@@ -1197,6 +1198,53 @@ https://&lt;アプリ名&gt;.azurewebsites.net/.auth/login/aad/callback
       </tbody>
     </table>
   </div>
+
+  <h3>設計レビューで追加した検討事項</h3>
+  <p>初版に対する設計レビューで、<strong>開発着手にあたって明示されていなかった前提</strong>が見つかった。いずれも設計の根幹を揺るがすものではないが、放置すると M1〜M2 の途中で必ず手戻りになる。対応するPBIを <a href="#s12">12章</a> に起こしてある（<code>B-00</code> と <code>B-25</code> 以降）。</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>#</th><th>区分</th><th>内容</th><th>対応PBI</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="id">Q-7</td>
+          <td><span class="chip pre">着手前に決定</span></td>
+          <td><strong>テスト戦略が空白だった。</strong> 不変条件 <a href="#s4">I-1〜I-7</a>・認証 <a href="#s8">V-1〜V-4</a>・並び替えの退行は「壊れても気づきにくい」性質であり、自動テストなしでは完了条件を担保できない</td>
+          <td class="id"><a href="#s12">B-00</a></td>
+        </tr>
+        <tr>
+          <td class="id">Q-8</td>
+          <td><span class="chip pre">着手前に決定</span></td>
+          <td><strong><code>productId</code> の発生源が未定義だった。</strong> 全設計の土台であるパーティションキーなのに、<code>product</code> ドキュメントを誰がいつ作るか・単一チームの初期データ投入をどうするかが無い。M1の「1件表示」の前提</td>
+          <td class="id"><a href="#s12">B-26</a></td>
+        </tr>
+        <tr>
+          <td class="id">Q-9</td>
+          <td><span class="chip pre">着手前に決定</span></td>
+          <td><strong>認可のブートストラップが未定義だった。</strong> <a href="#s12">B-14</a> で「メンバーでなければ403」を導入すると、最初のメンバーが誰も居ない状態を抜けられない鶏卵問題が起きる</td>
+          <td class="id"><a href="#s12">B-27</a></td>
+        </tr>
+        <tr>
+          <td class="id">Q-10</td>
+          <td><span class="chip pre">着手前に決定</span></td>
+          <td><strong>API共通規約が未定義だった。</strong> エラー応答形式・信頼境界（正はサーバー、フロントのバリデーションはUX補助）・型/スキーマ共有。最初のCRUD（<a href="#s12">B-08</a>）が後続の暗黙の規約になるため、先に決める</td>
+          <td class="id"><a href="#s12">B-25</a></td>
+        </tr>
+        <tr>
+          <td class="id">Q-11</td>
+          <td><span class="chip in">実装時に検証</span></td>
+          <td><strong>楽観排他 412 の「発生後」の振る舞いが未定義だった。</strong> <a href="#s12">B-17</a> は検出を保証するが、再取得マージか再操作を促すかが無い。朝会の同時操作が前提のため体験を左右する</td>
+          <td class="id"><a href="#s12">B-28</a></td>
+        </tr>
+        <tr>
+          <td class="id">Q-12</td>
+          <td><span class="chip in">実装時に検証</span></td>
+          <td><strong>取りこぼしやすい2点。</strong> ①論理削除の <code>NOT isDeleted</code> 除外を全クエリで漏らさない共通化（<a href="#s12">B-07</a>）②進捗マーカーの営業日計算における祝日・タイムゾーンの扱い（<a href="#s12">B-18</a>）</td>
+          <td class="id">B-07 / B-18</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
 </section>
 
 <!-- ============ 12 ============ -->
@@ -1209,6 +1257,7 @@ https://&lt;アプリ名&gt;.azurewebsites.net/.auth/login/aad/callback
   <div class="note">
     <span class="lbl">着手順について</span>
     <p>外部のリードタイムに依存する作業はないため、<strong>着手順を縛る制約は依存関係だけ</strong>である。ただしB-05・B-06はB-01が済むまで動作確認できないので、早い段階で片付けておくと後の手戻りが減る。</p>
+    <p><strong>M0（B-00・B-25・B-29）は他PBIの品質を担保する土台</strong>である。テスト基盤とAPI共通規約が無いままB-08以降を書くと、退行検知と規約の一貫性が後追いになり手戻りが増える。B-03と並行して早期に片付ける。</p>
     <p>アプリ登録とリソース作成は<strong>再現できる形で残すこと</strong>（<a href="#s9">09章</a>）。一度きりの作業に見えるが、無料枠の作り直し、検証環境の追加、メンバーの増加で必ず再実行される。</p>
   </div>
 
@@ -1217,9 +1266,10 @@ https://&lt;アプリ名&gt;.azurewebsites.net/.auth/login/aad/callback
     <table>
       <thead><tr><th>#</th><th>到達点</th><th>含むPBI</th></tr></thead>
       <tbody>
-        <tr><td class="id">M1</td><td>サインインして自分のデータが1件表示できる（歩ける骨格）</td><td>B-01 〜 B-07</td></tr>
-        <tr><td class="id">M2</td><td>プロダクトバックログが運用できる</td><td>B-08 〜 B-14</td></tr>
-        <tr><td class="id">M3</td><td><strong>スプリントが1周回る</strong> — ここからドッグフーディング</td><td>B-15 〜 B-19</td></tr>
+        <tr><td class="id">M0</td><td>開発の土台（テスト・CI・API規約・リポジトリ規約）</td><td>B-00, B-25, B-29</td></tr>
+        <tr><td class="id">M1</td><td>サインインして自分のデータが1件表示できる（歩ける骨格）</td><td>B-01 〜 B-07, B-26</td></tr>
+        <tr><td class="id">M2</td><td>プロダクトバックログが運用できる</td><td>B-08 〜 B-14, B-27</td></tr>
+        <tr><td class="id">M3</td><td><strong>スプリントが1周回る</strong> — ここからドッグフーディング</td><td>B-15 〜 B-19, B-28</td></tr>
         <tr><td class="id">M4</td><td>デイリースクラムがこの画面だけで完結する</td><td>B-20 〜 B-22</td></tr>
         <tr><td class="id">M5</td><td>実運用に耐える</td><td>B-23 〜 B-24</td></tr>
       </tbody>
@@ -1229,34 +1279,45 @@ https://&lt;アプリ名&gt;.azurewebsites.net/.auth/login/aad/callback
   <h3>PBI一覧</h3>
   <div class="tw">
     <table>
-      <thead><tr><th>#</th><th>PBI</th><th>完了条件</th><th>依存</th></tr></thead>
+      <thead><tr><th>M</th><th>#</th><th>PBI</th><th>完了条件</th><th>依存</th></tr></thead>
       <tbody>
-        <tr><td class="id">B-01</td><td>Entra IDにアプリを登録する</td><td><a href="#s8">08章</a>のチェックリスト全項目が完了し、テナントIDとクライアントIDが控えてある。リダイレクトURI3種が登録済み。<strong>手順が再実行可能な形で残っている</strong></td><td>—</td></tr>
-        <tr><td class="id">B-02</td><td>Azureリソースを用意する</td><td>App Service F1とCosmos DB無料レベルが作成され、<strong>予算アラートが設定されている</strong></td><td>—</td></tr>
-        <tr><td class="id">B-03</td><td>プロジェクトの骨格を作る</td><td>Angularのビルド成果物をFastAPIが配信し、ローカルで1コマンド起動できる</td><td>—</td></tr>
-        <tr><td class="id">B-04</td><td>デプロイパイプラインを通す</td><td>mainへのpushでApp Serviceに自動デプロイされ、公開URLで表示できる</td><td>B-02, B-03</td></tr>
-        <tr><td class="id">B-05</td><td>フロントエンドのサインイン</td><td>MSALでサインインでき、未認証ユーザーはガードで弾かれる。ローカルでも同じ経路で動く</td><td>B-01</td></tr>
-        <tr><td class="id">B-06</td><td>APIのトークン検証</td><td><a href="#s8">V-1〜V-4</a>をすべて通過したリクエストのみ200を返す。改ざんトークンで401</td><td>B-01</td></tr>
-        <tr><td class="id">B-07</td><td>データアクセス基盤</td><td>単一コンテナが作成され、インデックス除外パスが設定済み。共通フィールド付与・論理削除・<code>_etag</code>楽観排他が共通処理として動く</td><td>B-02</td></tr>
-        <tr><td class="id">B-08</td><td>PBIのCRUD API</td><td>作成・取得・更新・論理削除ができ、不正な状態遷移が弾かれる</td><td>B-06, B-07</td></tr>
-        <tr><td class="id">B-09</td><td>並び替え（rank）</td><td><strong>Cosmos DBの <code>ORDER BY</code> が辞書順と一致することを実データで確認済み</strong>。1件を移動したとき更新されるドキュメントが1件だけである。同一キーが生じても <code>ORDER BY rank, id</code> で全端末の並びが一致する</td><td>B-07</td></tr>
-        <tr><td class="id">B-10</td><td>プロダクトバックログ画面</td><td>PBIが優先順位順に並び、ドラッグで並び替えでき、ステータスを変更できる</td><td>B-05, B-08, B-09</td></tr>
-        <tr><td class="id">B-11</td><td>PBI詳細</td><td>概要、完了条件のチェックリスト、<code>estimate</code>（<strong>任意入力・未設定でも警告を出さない</strong>）を編集できる</td><td>B-10</td></tr>
-        <tr><td class="id">B-12</td><td>PBIの分割</td><td>分割で生成されたPBIが <code>parentPbiId</code> で元を参照し、一覧から辿れる</td><td>B-10</td></tr>
-        <tr><td class="id">B-13</td><td>タスクのCRUD</td><td><a href="#s4">I-1〜I-5</a>のバリデーションが<strong>単一の関数に集約</strong>されている。<code>taskType='team'</code> でも作成できる</td><td>B-07, B-08</td></tr>
-        <tr><td class="id">B-14</td><td>メンバー管理と認可</td><td>プロダクトのメンバーでないユーザーは403。<code>oid</code> をキーにしている</td><td>B-06, B-07</td></tr>
-        <tr><td class="id">B-15</td><td>スプリントのCRUD</td><td>期間とゴールを設定でき、planned / active / closed が遷移する</td><td>B-07</td></tr>
-        <tr><td class="id">B-16</td><td>プランニングモード（右ペイン）</td><td>PBIのチェックで配下タスクが投入され、<strong>タスク0件なら「タスク分解」が1件生成される</strong>。外すと未完了タスクのみ <code>sprintId=null</code> に戻る</td><td>B-10, B-13, B-15</td></tr>
-        <tr><td class="id">B-17</td><td>スプリント画面のボード</td><td>todo / doing / done をドラッグで移動でき、ブロック中を立てられる。<strong>2人が同時に触っても片方の更新が消えない</strong></td><td>B-13, B-15</td></tr>
-        <tr><td class="id">B-18</td><td>進捗表示</td><td><a href="#s5">05章</a>の2本バーが表示され、マーカーが<strong>営業日</strong>で計算されている。警告色を使っていない</td><td>B-17</td></tr>
-        <tr><td class="id">B-19</td><td>スプリント終了処理</td><td>持ち越し対象の一覧をプレビューしてから確定でき、<strong>完了タスクは移動しない</strong></td><td>B-15, B-17</td></tr>
-        <tr><td class="id">B-20</td><td>デイリーパネル</td><td>アジェンダと議事録を編集でき、1日1ドキュメントで保存される</td><td>B-17</td></tr>
-        <tr><td class="id">B-21</td><td>NextActionの表示</td><td>前スプリントのアクションが今スプリントのパネルに出て、完了にできる</td><td>B-20</td></tr>
-        <tr><td class="id">B-22</td><td>未割当のチームタスク</td><td>スプリントから外したチームタスクがバックログ画面に現れる（<strong>どこにも表示されない状態が存在しない</strong>）</td><td>B-10, B-16</td></tr>
-        <tr><td class="id">B-23</td><td>ベロシティ表示</td><td><code>completedSprintId</code> ごとの <code>estimate</code> 合計が出る。未設定は除外され、<strong>3スプリントの移動平均</strong>で表示される</td><td>B-19</td></tr>
-        <tr><td class="id">B-24</td><td>本番運用の確認</td><td>F1のスリープからの復帰時間とRU消費を実測し、無料枠に収まることを確認。予算アラートが発火することを確認済み</td><td>B-04, 全機能</td></tr>
+        <tr><td class="id">M0</td><td class="id">B-00</td><td>テスト戦略とCI基盤</td><td>テストフレームワークを選定し単体／結合／E2Eの線引きを文書化。CIで自動実行され<strong>失敗でマージがブロックされる</strong>。不変条件 <a href="#s4">I-1〜I-7</a> を検証するテストの雛形がある</td><td>B-03</td></tr>
+        <tr><td class="id">M0</td><td class="id">B-25</td><td>API共通規約の策定</td><td>エラー応答形式（401／403／404／409＝楽観排他／422）を統一。<strong>信頼境界はサーバー</strong>（フロントのバリデーションはUX補助）と明記。型／スキーマ共有方針（OpenAPIからの型生成等）を決定</td><td>B-06</td></tr>
+        <tr><td class="id">M0</td><td class="id">B-29</td><td>リポジトリ規約の整備</td><td>LICENSE・README（開発セットアップ手順）・コミット規約・ブランチ戦略・開発ガイドが揃っている</td><td>—</td></tr>
+        <tr><td class="id">M1</td><td class="id">B-01</td><td>Entra IDにアプリを登録する</td><td><a href="#s8">08章</a>のチェックリスト全項目が完了し、テナントIDとクライアントIDが控えてある。リダイレクトURI3種が登録済み。<strong>手順が再実行可能な形で残っている</strong></td><td>—</td></tr>
+        <tr><td class="id">M1</td><td class="id">B-02</td><td>Azureリソースを用意する</td><td>App Service F1とCosmos DB無料レベルが作成され、<strong>予算アラートが設定されている</strong></td><td>—</td></tr>
+        <tr><td class="id">M1</td><td class="id">B-03</td><td>プロジェクトの骨格を作る</td><td>Angularのビルド成果物をFastAPIが配信し、ローカルで1コマンド起動できる</td><td>—</td></tr>
+        <tr><td class="id">M1</td><td class="id">B-04</td><td>デプロイパイプラインを通す</td><td>mainへのpushでApp Serviceに自動デプロイされ、公開URLで表示できる</td><td>B-02, B-03</td></tr>
+        <tr><td class="id">M1</td><td class="id">B-05</td><td>フロントエンドのサインイン</td><td>MSALでサインインでき、未認証ユーザーはガードで弾かれる。ローカルでも同じ経路で動く</td><td>B-01</td></tr>
+        <tr><td class="id">M1</td><td class="id">B-06</td><td>APIのトークン検証</td><td><a href="#s8">V-1〜V-4</a>をすべて通過したリクエストのみ200を返す。改ざんトークンで401</td><td>B-01</td></tr>
+        <tr><td class="id">M1</td><td class="id">B-07</td><td>データアクセス基盤</td><td>単一コンテナが作成され、インデックス除外パスが設定済み。共通フィールド付与・論理削除・<code>_etag</code>楽観排他が共通処理として動く。<strong>全クエリで <code>NOT isDeleted</code> を漏れなく除外する共通処理を含む</strong></td><td>B-02</td></tr>
+        <tr><td class="id">M1</td><td class="id">B-26</td><td>product初期化とデータseeding</td><td><code>product</code> ドキュメントの生成経路を決定（初回サインイン時に自動生成 or 手動投入）。<strong>単一チームの初期データ投入手順が再現可能な形で残り</strong>、<code>productId</code> の払い出しルールが文書化されている</td><td>B-07</td></tr>
+        <tr><td class="id">M2</td><td class="id">B-08</td><td>PBIのCRUD API</td><td>作成・取得・更新・論理削除ができ、不正な状態遷移が弾かれる</td><td>B-06, B-07</td></tr>
+        <tr><td class="id">M2</td><td class="id">B-09</td><td>並び替え（rank）</td><td><strong>Cosmos DBの <code>ORDER BY</code> が辞書順と一致することを実データで確認済み</strong>。1件を移動したとき更新されるドキュメントが1件だけである。同一キーが生じても <code>ORDER BY rank, id</code> で全端末の並びが一致する</td><td>B-07</td></tr>
+        <tr><td class="id">M2</td><td class="id">B-10</td><td>プロダクトバックログ画面</td><td>PBIが優先順位順に並び、ドラッグで並び替えでき、ステータスを変更できる</td><td>B-05, B-08, B-09</td></tr>
+        <tr><td class="id">M2</td><td class="id">B-11</td><td>PBI詳細</td><td>概要、完了条件のチェックリスト、<code>estimate</code>（<strong>任意入力・未設定でも警告を出さない</strong>）を編集できる</td><td>B-10</td></tr>
+        <tr><td class="id">M2</td><td class="id">B-12</td><td>PBIの分割</td><td>分割で生成されたPBIが <code>parentPbiId</code> で元を参照し、一覧から辿れる</td><td>B-10</td></tr>
+        <tr><td class="id">M2</td><td class="id">B-13</td><td>タスクのCRUD</td><td><a href="#s4">I-1〜I-5</a>のバリデーションが<strong>単一の関数に集約</strong>されている。<code>taskType='team'</code> でも作成できる</td><td>B-07, B-08</td></tr>
+        <tr><td class="id">M2</td><td class="id">B-14</td><td>メンバー管理と認可</td><td>プロダクトのメンバーでないユーザーは403。<code>oid</code> をキーにしている</td><td>B-06, B-07</td></tr>
+        <tr><td class="id">M2</td><td class="id">B-27</td><td>認可ブートストラップ</td><td>最初のユーザーを <code>member</code>（admin）として登録する経路が決まり、<strong>メンバー0人の状態からサインイン→利用開始できる</strong>。Entra側の割り当てとアプリ内 <code>member</code> の役割分担が文書化されている</td><td>B-14, B-26</td></tr>
+        <tr><td class="id">M3</td><td class="id">B-15</td><td>スプリントのCRUD</td><td>期間とゴールを設定でき、planned / active / closed が遷移する</td><td>B-07</td></tr>
+        <tr><td class="id">M3</td><td class="id">B-16</td><td>プランニングモード（右ペイン）</td><td>PBIのチェックで配下タスクが投入され、<strong>タスク0件なら「タスク分解」が1件生成される</strong>。外すと未完了タスクのみ <code>sprintId=null</code> に戻る</td><td>B-10, B-13, B-15</td></tr>
+        <tr><td class="id">M3</td><td class="id">B-17</td><td>スプリント画面のボード</td><td>todo / doing / done をドラッグで移動でき、ブロック中を立てられる。<strong>2人が同時に触っても片方の更新が消えない</strong></td><td>B-13, B-15</td></tr>
+        <tr><td class="id">M3</td><td class="id">B-18</td><td>進捗表示</td><td><a href="#s5">05章</a>の2本バーが表示され、マーカーが<strong>営業日</strong>で計算されている。警告色を使っていない。<strong>祝日・タイムゾーンの扱いを決めてある</strong></td><td>B-17</td></tr>
+        <tr><td class="id">M3</td><td class="id">B-19</td><td>スプリント終了処理</td><td>持ち越し対象の一覧をプレビューしてから確定でき、<strong>完了タスクは移動しない</strong></td><td>B-15, B-17</td></tr>
+        <tr><td class="id">M3</td><td class="id">B-28</td><td>楽観排他（412）のUX</td><td>412発生時の振る舞い（自動再取得マージ／再操作を促す 等）が決まり、ボード操作全体で一貫して適用される。<strong>更新が黙って消える経路が存在しない</strong></td><td>B-17</td></tr>
+        <tr><td class="id">M4</td><td class="id">B-20</td><td>デイリーパネル</td><td>アジェンダと議事録を編集でき、1日1ドキュメントで保存される</td><td>B-17</td></tr>
+        <tr><td class="id">M4</td><td class="id">B-21</td><td>NextActionの表示</td><td>前スプリントのアクションが今スプリントのパネルに出て、完了にできる</td><td>B-20</td></tr>
+        <tr><td class="id">M4</td><td class="id">B-22</td><td>未割当のチームタスク</td><td>スプリントから外したチームタスクがバックログ画面に現れる（<strong>どこにも表示されない状態が存在しない</strong>）</td><td>B-10, B-16</td></tr>
+        <tr><td class="id">M5</td><td class="id">B-23</td><td>ベロシティ表示</td><td><code>completedSprintId</code> ごとの <code>estimate</code> 合計が出る。未設定は除外され、<strong>3スプリントの移動平均</strong>で表示される</td><td>B-19</td></tr>
+        <tr><td class="id">M5</td><td class="id">B-24</td><td>本番運用の確認</td><td>F1のスリープからの復帰時間とRU消費を実測し、無料枠に収まることを確認。予算アラートが発火することを確認済み</td><td>B-04, 全機能</td></tr>
       </tbody>
     </table>
+  </div>
+
+  <div class="note">
+    <span class="lbl">設計レビューで追加したPBI</span>
+    <p><code>B-00</code>（テスト戦略）・<code>B-25</code>（API共通規約）・<code>B-26</code>（product初期化）・<code>B-27</code>（認可ブートストラップ）・<code>B-28</code>（楽観排他UX）・<code>B-29</code>（リポジトリ規約）は、初版に対する設計レビューで<strong>着手前の欠落として抽出したもの</strong>で、提案書初版には無い。背景は <a href="#s11">11章「設計レビューで追加した検討事項」</a>を参照。加えて <code>B-07</code>（<code>NOT isDeleted</code> の全クエリ除外）と <code>B-18</code>（祝日・タイムゾーン）の完了条件に注記を追加した。</p>
   </div>
 
   <div class="note">
