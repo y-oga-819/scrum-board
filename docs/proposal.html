@@ -1,0 +1,1293 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>スクラムバックログ管理アプリ 設計提案書</title>
+<style>
+:root{
+  --ink:#101E26;
+  --paper:#F5F7F6;
+  --card:#FFFFFF;
+  --rule:#D3DAD9;
+  --rule-soft:#E7ECEB;
+  --muted:#5E6E75;
+  --accent:#0B6E7A;
+  --accent-soft:#E2EFF1;
+  --team:#8A6A1E;
+  --team-soft:#F2EBDA;
+  --signal:#9C3B2E;
+  --signal-soft:#F7E9E6;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Noto Sans Mono CJK JP", monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", "Meiryo", sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion: reduce){ html{scroll-behavior:auto} *{transition:none!important} }
+body{margin:0; background:var(--paper); color:var(--ink); font-family:var(--sans); font-size:16px; line-height:1.8; -webkit-font-smoothing:antialiased}
+.shell{display:grid; grid-template-columns:260px minmax(0,1fr); max-width:1240px; margin:0 auto}
+.rail{position:sticky; top:0; align-self:start; height:100vh; overflow-y:auto; padding:40px 24px 40px 28px; border-right:1px solid var(--rule)}
+.doc{padding:56px 48px 120px 48px; min-width:0}
+
+.mast{border-bottom:2px solid var(--ink); padding-bottom:22px; margin-bottom:14px}
+.mast .kicker{font-family:var(--mono); font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--accent); margin:0 0 12px}
+.mast h1{font-size:32px; line-height:1.35; margin:0 0 14px; letter-spacing:-.01em}
+.mast .meta{font-family:var(--mono); font-size:12px; color:var(--muted); margin:0; line-height:2}
+
+.rail .railtitle{font-family:var(--mono); font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); margin:0 0 16px}
+.rail ol{list-style:none; margin:0; padding:0}
+.rail li{margin:0 0 2px}
+.rail a{display:flex; gap:10px; text-decoration:none; color:var(--muted); font-size:13.5px; line-height:1.5; padding:6px 8px; border-radius:3px; border-left:2px solid transparent}
+.rail a .n{font-family:var(--mono); font-size:11px; padding-top:2px; opacity:.75}
+.rail a:hover{background:var(--rule-soft); color:var(--ink)}
+.rail a.on{color:var(--accent); border-left-color:var(--accent); background:var(--accent-soft); font-weight:600}
+.rail a:focus-visible, .doc a:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+
+.sec{padding-top:52px; margin-top:8px}
+.sec > h2{display:flex; align-items:baseline; gap:14px; font-size:24px; margin:0 0 6px; letter-spacing:-.01em; padding-bottom:10px; border-bottom:1px solid var(--rule)}
+.sec > h2 .n{font-family:var(--mono); font-size:13px; color:var(--accent); letter-spacing:.08em}
+.sec > h3{font-size:17px; margin:38px 0 10px}
+.sec > h4{font-size:14.5px; margin:26px 0 8px; font-family:var(--mono); color:var(--muted); letter-spacing:.04em}
+.lede{font-size:17px; color:var(--muted); margin:0 0 8px}
+p{margin:0 0 16px}
+code{font-family:var(--mono); font-size:.86em; background:var(--rule-soft); padding:2px 6px; border-radius:3px; white-space:nowrap}
+pre{font-family:var(--mono); font-size:12.5px; line-height:1.7; background:var(--card); border:1px solid var(--rule); border-left:3px solid var(--accent); border-radius:4px; padding:16px 18px; overflow-x:auto; margin:0 0 18px}
+pre code{background:none; padding:0; white-space:pre}
+ul,ol{margin:0 0 18px; padding-left:1.4em}
+li{margin:0 0 6px}
+
+.tw{overflow-x:auto; margin:0 0 20px; border:1px solid var(--rule); border-radius:4px; background:var(--card)}
+table{border-collapse:collapse; width:100%; font-size:14px}
+th,td{padding:11px 14px; text-align:left; vertical-align:top; border-bottom:1px solid var(--rule-soft)}
+thead th{font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); background:var(--rule-soft); border-bottom:1px solid var(--rule); white-space:nowrap}
+tbody tr:last-child td{border-bottom:none}
+td code{white-space:normal}
+.id{font-family:var(--mono); font-size:12px; color:var(--accent); white-space:nowrap; font-weight:600}
+
+.note{border:1px solid var(--rule); border-left:3px solid var(--accent); background:var(--card); padding:16px 18px; border-radius:4px; margin:0 0 20px}
+.note.warn{border-left-color:var(--signal); background:var(--signal-soft)}
+.note .lbl{font-family:var(--mono); font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--accent); display:block; margin-bottom:6px}
+.note.warn .lbl{color:var(--signal)}
+.note p:last-child{margin-bottom:0}
+.note ol{margin-bottom:0}
+
+figure{margin:0 0 24px; background:var(--card); border:1px solid var(--rule); border-radius:4px; padding:20px 18px 14px}
+figure svg{display:block; width:100%; height:auto}
+figcaption{font-family:var(--mono); font-size:11.5px; color:var(--muted); margin-top:12px; padding-top:10px; border-top:1px solid var(--rule-soft); letter-spacing:.03em}
+
+.chip{font-family:var(--mono); font-size:11px; padding:2px 8px; border-radius:99px; white-space:nowrap; letter-spacing:.04em}
+.chip.in{background:var(--accent-soft); color:var(--accent)}
+.chip.out{background:var(--signal-soft); color:var(--signal)}
+.chip.open{background:var(--team-soft); color:var(--team)}
+
+hr.div{border:none; border-top:1px solid var(--rule); margin:44px 0 0}
+
+@media (max-width:900px){
+  .shell{grid-template-columns:1fr}
+  .rail{position:static; height:auto; border-right:none; border-bottom:1px solid var(--rule); padding:24px 20px}
+  .rail ol{columns:2; column-gap:16px}
+  .rail li{break-inside:avoid}
+  .doc{padding:32px 20px 80px}
+  .mast h1{font-size:25px}
+  .sec > h2{font-size:20px}
+  body{font-size:15.5px}
+}
+@media print{
+  body{background:#fff; font-size:10.5pt}
+  .rail{display:none}
+  .shell{display:block; max-width:none}
+  .doc{padding:0}
+  .sec{padding-top:26px}
+  .sec > h2{break-after:avoid}
+  figure,.tw,.note,pre{break-inside:avoid}
+  a{color:inherit; text-decoration:none}
+}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<nav class="rail" aria-label="目次">
+  <p class="railtitle">目次</p>
+  <ol>
+    <li><a href="#s0"><span class="n">00</span><span>提案の概要</span></a></li>
+    <li><a href="#s1"><span class="n">01</span><span>コンセプトと対象チーム像</span></a></li>
+    <li><a href="#s2"><span class="n">02</span><span>スコープ</span></a></li>
+    <li><a href="#s3"><span class="n">03</span><span>画面構成</span></a></li>
+    <li><a href="#s4"><span class="n">04</span><span>ドメインモデル</span></a></li>
+    <li><a href="#s5"><span class="n">05</span><span>進捗の見せ方</span></a></li>
+    <li><a href="#s6"><span class="n">06</span><span>データモデル</span></a></li>
+    <li><a href="#s7"><span class="n">07</span><span>主要フロー</span></a></li>
+    <li><a href="#s8"><span class="n">08</span><span>認証・認可</span></a></li>
+    <li><a href="#s9"><span class="n">09</span><span>技術構成とコスト</span></a></li>
+    <li><a href="#s10"><span class="n">10</span><span>設計判断の記録</span></a></li>
+    <li><a href="#s11"><span class="n">11</span><span>今後の検討事項</span></a></li>
+    <li><a href="#s12"><span class="n">12</span><span>実装バックログ</span></a></li>
+  </ol>
+</nav>
+
+<main class="doc">
+
+<header class="mast">
+  <p class="kicker">設計提案書</p>
+  <h1>スクラムバックログ管理アプリ</h1>
+  <p class="meta">
+    2026-07-24 &nbsp;·&nbsp; 実装着手のための設計仕様<br>
+    Angular + Python (FastAPI) + Azure App Service + Cosmos DB + Microsoft Entra ID
+  </p>
+</header>
+
+<!-- ============ 00 ============ -->
+<section class="sec" id="s0">
+  <h2><span class="n">00</span>提案の概要</h2>
+
+  <p class="lede">自律的に回っているスクラムチームが、管理コストをかけずにプロダクトバックログとスプリントを回すための小さなWebアプリを作る。</p>
+
+  <p>既存のスクラムツールは多機能な代わりに、入力・維持のコストが高い。本提案は<strong>機能を意図的に絞り、成熟したチームの実際の運用にモデルを合わせる</strong>ことで、ツールに合わせて働くのではなく、働き方にツールを合わせる方向を取る。一般的なスクラムツールの定石からいくつか意図的に外れているため、その判断の根拠を<a href="#s10">10 設計判断の記録</a>にすべて残してある。</p>
+
+  <h3>一目でわかる仕様</h3>
+  <div class="tw">
+    <table>
+      <tbody>
+        <tr><td style="width:9em">プロダクト</td><td>スクラムバックログ管理 Webアプリケーション</td></tr>
+        <tr><td>対象</td><td>自律的に回っている単一のスクラムチーム</td></tr>
+        <tr><td>画面数</td><td><strong>2画面</strong>（プロダクトバックログ／スプリント）＋モード切替</td></tr>
+        <tr><td>フロントエンド</td><td>Angular（MSAL Angular）</td></tr>
+        <tr><td>バックエンド</td><td>Python / FastAPI</td></tr>
+        <tr><td>データストア</td><td>Azure Cosmos DB — <strong>単一コンテナ</strong>、パーティションキー <code>/productId</code></td></tr>
+        <tr><td>認証</td><td>Microsoft Entra ID（MSAL によるサインイン ＋ API側でJWT検証）</td></tr>
+        <tr><td>ホスティング</td><td>Azure App Service（フロントとAPIを同居）</td></tr>
+        <tr><td>初期コスト</td><td><strong>無料枠内</strong>（App Service F1 ／ Cosmos DB 無料レベル ／ Entra ID Free）</td></tr>
+        <tr><td>実装規模</td><td>PBI 24項目／5マイルストーン（<a href="#s12">12章</a>）</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>このドキュメントの読み方</h3>
+  <ul>
+    <li><strong><a href="#s1">01章</a>を先に読むこと。</strong> 以降のすべての判断はそこに書かれた3つの設計原則から導かれている</li>
+    <li><a href="#s10">10章</a>は「なぜこの仕様なのか」の索引である。<strong>仕様を変更したくなったら、まずここを引く</strong>。一般的なツールと違う箇所には、そう決めた理由がある</li>
+    <li><a href="#s12">12章</a>が実装の着手点。完了条件は「機能が動くか」ではなく<strong>設計判断が実装に落ちたか</strong>を確認できる形で書いてある</li>
+    <li>Azureリソースの作成とEntra IDアプリ登録の具体的な手順は、本書とは別のセットアップ手順書として管理する</li>
+  </ul>
+
+  <div class="note warn">
+    <span class="lbl">実装で取り違えやすい5点</span>
+    <ol>
+      <li><strong>スプリントを参照するのはタスクだけ。</strong> PBIはスプリントIDを持たない（<code>completedSprintId</code> を除く）</li>
+      <li><strong><code>taskType</code> が判別子。</strong> <code>pbiId</code> が <code>null</code> かどうかで種別を判定してはいけない</li>
+      <li><strong>完了タスクは動かさない。</strong> 持ち越しでも、スプリントから外すときでも、対象外である</li>
+      <li><strong>進捗表示に警告色を使わない。</strong> 色は種別の区別にのみ使う</li>
+      <li><strong><code>estimate</code> は任意。</strong> 未入力を必須エラーにも警告表示にもしない</li>
+    </ol>
+  </div>
+</section>
+
+<!-- ============ 01 ============ -->
+<section class="sec" id="s1">
+  <h2><span class="n">01</span>コンセプトと対象チーム像</h2>
+  <p class="lede">誰のためのツールかを決めることが、機能を削る根拠になる。</p>
+
+  <h3>対象とするチーム</h3>
+  <p>スクラムがすでに習慣になっていて、ベロシティがおおむね安定しているチーム。こうしたチームでは<strong>見積りに時間をかけることの限界効用が下がる</strong>。ポイントを振る30分があるなら、タスクを一つ消化したほうが価値が出る局面が現実に存在する。本アプリはその判断を許容する。</p>
+
+  <h3>対象としないチーム</h3>
+  <p>立ち上げ期のチームやスクラム初学者。彼らには「未見積りの警告」「持ち越しの可視化」といった補助輪が必要だが、本アプリはそれを持たない。これは欠陥ではなく<strong>スコープの選択</strong>である。</p>
+
+  <div class="note">
+    <span class="lbl">補足</span>
+    <p>ただし「成熟チームの型に初学者チームを最初から入れてしまう」という使い方は想定内であり、否定しない。これは運用の工夫であってアプリの機能ではない。</p>
+  </div>
+
+  <h3>設計原則</h3>
+  <p>迷ったときはこの3つに戻る。新機能がこれに反するなら、その機能を疑う。</p>
+  <div class="tw">
+    <table>
+      <thead><tr><th>#</th><th>原則</th><th>意味するところ</th></tr></thead>
+      <tbody>
+        <tr><td class="id">P-1</td><td>ルールで縛らず、事実を見せる</td><td>ツールは正しい振る舞いを強制しない。事実を可視化し、判断はチームに返す。「またいだスプリント数を表示する」は原則に合う。「3スプリント超えたら登録をブロックする」は合わない</td></tr>
+        <tr><td class="id">P-2</td><td>管理コストを下げる</td><td>スクラムの原則よりも、目の前のユーザーストーリーの実現に集中できることを優先する。原則からの逸脱は、それが管理コストを下げるなら妥当な最適化とみなす</td></tr>
+        <tr><td class="id">P-3</td><td>後から復元できない情報だけを先に持つ</td><td>機能の取捨選択の基準。あとから追加してもデータの履歴を失わないものは、後回しにしてよい</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>中核となるモデル</h3>
+  <p>本アプリを他のバックログツールと分けている最大の特徴は、<strong>PBIは複数スプリントにまたがってよいが、スプリントに属するのはタスクだけ</strong>という点にある。PBI自身はスプリントへの参照を持たない。</p>
+
+  <figure>
+    <svg viewBox="0 0 720 300" role="img" aria-labelledby="f1">
+      <title id="f1">PBIが複数スプリントにまたがり、タスクが各スプリントに固定される図</title>
+      <defs><style>
+        .sl{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#5E6E75}
+        .tl{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#101E26}
+        .wl{font-family:ui-monospace,Menlo,monospace;font-size:10px;fill:#FFFFFF}
+        .hd{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#0B6E7A;letter-spacing:.08em}
+      </style></defs>
+      <rect x="60" y="30" width="200" height="230" fill="#F5F7F6" stroke="#D3DAD9"/>
+      <rect x="270" y="30" width="200" height="230" fill="#F5F7F6" stroke="#D3DAD9"/>
+      <rect x="480" y="30" width="200" height="230" fill="#FFFFFF" stroke="#D3DAD9" stroke-dasharray="4 3"/>
+      <text x="160" y="22" class="hd" text-anchor="middle">SPRINT 1</text>
+      <text x="370" y="22" class="hd" text-anchor="middle">SPRINT 2</text>
+      <text x="580" y="22" class="hd" text-anchor="middle">SPRINT 3</text>
+
+      <rect x="72" y="48" width="386" height="30" rx="4" fill="#0B6E7A"/>
+      <text x="84" y="68" class="wl">PBI-01  ログイン機能</text>
+      <text x="470" y="68" class="sl">← 完了</text>
+      <text x="72" y="92" class="sl">※ この帯は配下タスクの位置から導出される。PBI自身はスプリントIDを持たない</text>
+
+      <rect x="84" y="104" width="164" height="24" rx="3" fill="#FFFFFF" stroke="#0B6E7A"/>
+      <text x="94" y="120" class="tl">✓ 画面モック  done</text>
+      <rect x="84" y="134" width="164" height="24" rx="3" fill="#FFFFFF" stroke="#0B6E7A"/>
+      <text x="94" y="150" class="tl">✓ API 設計    done</text>
+      <rect x="84" y="164" width="164" height="24" rx="3" fill="#FFFFFF" stroke="#D3DAD9" stroke-dasharray="3 2"/>
+      <text x="94" y="180" class="tl" fill="#5E6E75">□ 実装（未完了）</text>
+
+      <path d="M252 176 C 268 176, 268 116, 288 116" fill="none" stroke="#9C3B2E" stroke-width="1.4"/>
+      <polygon points="288,116 280,112 280,120" fill="#9C3B2E"/>
+      <text x="252" y="200" class="sl" fill="#9C3B2E">持ち越し</text>
+
+      <rect x="294" y="104" width="164" height="24" rx="3" fill="#FFFFFF" stroke="#0B6E7A"/>
+      <text x="304" y="120" class="tl">✓ 実装        done</text>
+      <rect x="294" y="134" width="164" height="24" rx="3" fill="#FFFFFF" stroke="#0B6E7A"/>
+      <text x="304" y="150" class="tl">✓ テスト      done</text>
+      <rect x="294" y="208" width="164" height="24" rx="3" fill="#FFFFFF" stroke="#8A6A1E"/>
+      <text x="304" y="224" class="tl" fill="#8A6A1E">◆ CI 修復（チーム）</text>
+
+      <line x1="60" y1="276" x2="680" y2="276" stroke="#E7ECEB"/>
+      <text x="60" y="292" class="sl">完了タスクは完了したスプリントに固定される。未完了タスクだけが次スプリントへ移動する。</text>
+    </svg>
+    <figcaption>図1 — PBIは横に伸び、タスクは縦に留まる。スプリント1を後から見ると完了タスクだけが残る。</figcaption>
+  </figure>
+
+  <p>この構造から、次の3つが同時に成立する。</p>
+  <ul>
+    <li><strong>大きなPBIを分割せずに扱える</strong> — 現実の運用に合わせられる（P-2）</li>
+    <li><strong>スプリントバックログは100%消化を目標にできる</strong> — またいでいるPBIでも、今スプリントに入れたタスクは今スプリントで終わる想定になる</li>
+    <li><strong>過去スプリントは実績のみを表す</strong> — 完了率は常に100%になる。これは予実管理をしないという意思表示である</li>
+  </ul>
+</section>
+
+<!-- ============ 02 ============ -->
+<section class="sec" id="s2">
+  <h2><span class="n">02</span>スコープ</h2>
+
+  <h3>作るもの</h3>
+  <div class="tw">
+    <table>
+      <thead><tr><th>領域</th><th>機能</th></tr></thead>
+      <tbody>
+        <tr><td>プロダクトバックログ</td><td>PBIの登録・編集・分割、優先順位の並び替え、ステータス変更、完了条件</td></tr>
+        <tr><td>スプリントプランニング</td><td>バックログ画面の右ペインでのスプリント編成、タスクの出し入れ</td></tr>
+        <tr><td>スプリント</td><td>作成（期間）、スプリントゴール、スプリント終了処理</td></tr>
+        <tr><td>タスクボード</td><td>todo / doing / done の移動、担当者、ブロック中フラグ</td></tr>
+        <tr><td>進捗表示</td><td>計画タスクとチームタスクの2本バー、営業日マーカー</td></tr>
+        <tr><td>デイリー</td><td>朝会アジェンダ、議事録、前回レトロのNextAction表示</td></tr>
+        <tr><td>認証・認可</td><td>Entra IDによるサインイン、メンバー管理</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>作らないもの</h3>
+  <div class="tw">
+    <table>
+      <thead><tr><th>機能</th><th>除外理由</th></tr></thead>
+      <tbody>
+        <tr><td>タスクの依存関係の可視化</td><td>グラフ描画・循環検出のコストに対し、<strong>並び順＋ブロック中フラグで9割の用が足りる</strong>。後から足しても過去データを失わない（P-3）</td></tr>
+        <tr><td>レトロスペクティブの記入画面</td><td>NextActionの<em>表示</em>のみ対応する。記入は既存ツールで足りる</td></tr>
+        <tr><td>バーンダウンチャート</td><td><code>createdAt</code> と <code>completedAt</code> があれば<strong>後から遡って再現できる</strong>ため、急がない（P-3）</td></tr>
+        <tr><td>ベロシティのグラフ表示</td><td><code>estimate</code> が任意項目のため常に表示できる保証がない。データは蓄積される</td></tr>
+        <tr><td>複数プロダクト横断のダッシュボード</td><td>対象は単一チーム。パーティション設計もそれを前提にしている</td></tr>
+        <tr><td>通知、ファイル添付、全文検索</td><td>無料枠の制約下では優先度が低い</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ 03 ============ -->
+<section class="sec" id="s3">
+  <h2><span class="n">03</span>画面構成</h2>
+  <p class="lede">スクラムイベントごとに画面を作らない。画面は2つ、モードで切り替える。</p>
+  <p>イベントごとに専用画面を用意すると、実体は同じデータなのに「どれを開けばいいのか」を毎回考えることになる。イベントで変わるのは<strong>操作の重さ</strong>であって、データではない。</p>
+
+  <figure>
+    <svg viewBox="0 0 720 230" role="img" aria-labelledby="f2">
+      <title id="f2">2画面とスクラムイベントの対応図</title>
+      <defs><style>
+        .b{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#101E26}
+        .m{font-family:ui-monospace,Menlo,monospace;font-size:10px;fill:#5E6E75}
+        .h2t{font-family:ui-monospace,Menlo,monospace;font-size:12px;fill:#0B6E7A;letter-spacing:.06em}
+      </style></defs>
+      <rect x="30" y="46" width="300" height="150" rx="5" fill="#FFFFFF" stroke="#0B6E7A" stroke-width="1.6"/>
+      <text x="48" y="72" class="h2t">画面A — プロダクトバックログ</text>
+      <line x1="48" y1="84" x2="312" y2="84" stroke="#E7ECEB"/>
+      <text x="48" y="106" class="b">・PBI一覧／並び替え／分割</text>
+      <text x="48" y="126" class="b">・［プランニングモード］右ペイン</text>
+      <text x="48" y="146" class="b">・未割当のチームタスク</text>
+      <text x="48" y="172" class="m">リファインメント</text>
+      <text x="48" y="188" class="m">スプリントプランニング</text>
+
+      <rect x="390" y="46" width="300" height="150" rx="5" fill="#FFFFFF" stroke="#0B6E7A" stroke-width="1.6"/>
+      <text x="408" y="72" class="h2t">画面B — スプリント</text>
+      <line x1="408" y1="84" x2="672" y2="84" stroke="#E7ECEB"/>
+      <text x="408" y="106" class="b">・ゴール／期間／進捗（2本バー）</text>
+      <text x="408" y="126" class="b">・タスクボード＋サイドパネル</text>
+      <text x="408" y="146" class="b">・［差し込み］同じ追加パネル</text>
+      <text x="408" y="172" class="m">デイリースクラム</text>
+      <text x="408" y="188" class="m">スプリントレビュー（読み取り）</text>
+
+      <path d="M336 106 L 384 106" stroke="#0B6E7A" stroke-width="1.4"/>
+      <polygon points="384,106 376,102 376,110" fill="#0B6E7A"/>
+      <text x="360" y="98" class="m" text-anchor="middle">編成</text>
+      <path d="M384 146 L 336 146" stroke="#9C3B2E" stroke-width="1.4"/>
+      <polygon points="336,146 344,142 344,150" fill="#9C3B2E"/>
+      <text x="360" y="164" class="m" text-anchor="middle" fill="#9C3B2E">FB→PBI化</text>
+
+      <text x="30" y="26" class="m">スプリントへのPBI追加＝リファインメントの作業 → 画面A</text>
+      <text x="30" y="42" class="m">登録済みPBIへのタスク追加＝スプリント中の作業 → 画面B</text>
+    </svg>
+    <figcaption>図2 — 画面は2つ。「どの作業か」で入口が決まる。</figcaption>
+  </figure>
+
+  <h3>イベント × 画面の対応</h3>
+  <div class="tw">
+    <table>
+      <thead><tr><th>イベント</th><th>画面</th><th>操作の性質</th><th>主な操作</th></tr></thead>
+      <tbody>
+        <tr><td>リファインメント</td><td>A</td><td><strong>書く</strong></td><td>PBI作成・分割・並び替え、完了条件の記入</td></tr>
+        <tr><td>スプリントプランニング</td><td>A（右ペイン）</td><td>選ぶ</td><td>PBI／タスクをスプリントへ、チームタスク追加</td></tr>
+        <tr><td>デイリースクラム</td><td>B</td><td><strong>動かす</strong></td><td>カード移動、ブロック、アジェンダ・議事録</td></tr>
+        <tr><td>スプリントレビュー</td><td>B</td><td><strong>見せる</strong></td><td>完了分の確認、フィードバックをPBI化</td></tr>
+        <tr><td>レトロスペクティブ</td><td>B</td><td>見る</td><td>前回NextActionの確認（記入は対象外）</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>プランニングモード（画面A）</h3>
+  <p>右ペインにスプリントがスライドインする。<strong>新しい画面ではなく画面Aのモード</strong>である。</p>
+
+  <figure>
+    <svg viewBox="0 0 720 268" role="img" aria-labelledby="f3">
+      <title id="f3">プランニングモードの2ペインレイアウト</title>
+      <defs><style>
+        .w{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#101E26}
+        .wm{font-family:ui-monospace,Menlo,monospace;font-size:9.5px;fill:#5E6E75}
+        .wh{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#0B6E7A;letter-spacing:.06em}
+      </style></defs>
+      <rect x="30" y="20" width="410" height="230" fill="#FFFFFF" stroke="#D3DAD9"/>
+      <rect x="440" y="20" width="250" height="230" fill="#F5F7F6" stroke="#0B6E7A" stroke-width="1.5"/>
+
+      <text x="46" y="42" class="wh">プロダクトバックログ（優先順位順）</text>
+      <line x1="46" y1="50" x2="424" y2="50" stroke="#E7ECEB"/>
+      <text x="46" y="70" class="w">▸ ☑ PBI-01  ログイン機能</text>
+      <text x="330" y="70" class="wm">5件</text>
+      <text x="46" y="92" class="w">▾ ☑ PBI-02  一覧表示</text>
+      <text x="330" y="92" class="wm">4件</text>
+      <text x="70" y="112" class="w">☑ API実装</text>
+      <text x="70" y="130" class="w">☑ 画面実装</text>
+      <text x="70" y="148" class="wm">☐ E2Eテスト（次スプリント）</text>
+      <text x="46" y="172" class="w">▸ ☐ PBI-03  検索機能</text>
+      <text x="330" y="172" class="wm">0件</text>
+      <text x="70" y="190" class="wm">→ チェックすると「タスク分解」を1件生成</text>
+      <line x1="46" y1="208" x2="424" y2="208" stroke="#E7ECEB"/>
+      <text x="46" y="228" class="wh">未割当のチームタスク</text>
+      <text x="46" y="242" class="wm">◆ 資料棚卸し（sprintId なし）</text>
+
+      <text x="456" y="42" class="wh">SPRINT 2 · 8/03 – 8/14</text>
+      <line x1="456" y1="50" x2="674" y2="50" stroke="#D3DAD9"/>
+      <text x="456" y="70" class="wm">PBI-01</text>
+      <rect x="456" y="76" width="218" height="18" fill="#FFFFFF" stroke="#0B6E7A"/>
+      <text x="464" y="89" class="w">設計 / 実装 / テスト …</text>
+      <text x="456" y="112" class="wm">PBI-02</text>
+      <rect x="456" y="118" width="218" height="18" fill="#FFFFFF" stroke="#0B6E7A"/>
+      <text x="464" y="131" class="w">API実装 / 画面実装</text>
+      <text x="456" y="154" class="wm">チームタスク</text>
+      <rect x="456" y="160" width="218" height="18" fill="#FFFFFF" stroke="#8A6A1E"/>
+      <text x="464" y="173" class="w">◆ CI 修復</text>
+      <line x1="456" y1="196" x2="674" y2="196" stroke="#D3DAD9"/>
+      <text x="456" y="216" class="w">計 9 件</text>
+      <text x="456" y="236" class="wm">※ 表示はPBI単位、データはタスク単位</text>
+    </svg>
+    <figcaption>図3 — 左のバックログから右のスプリントへ引き込む。プル型の動きをそのままUIにしている。</figcaption>
+  </figure>
+
+  <div class="note">
+    <span class="lbl">重要</span>
+    <p><strong>UIとデータモデルは一致させなくてよい。</strong> ユーザーの体験は「PBIをスプリントに入れる」だが、実際に起きるのは「配下タスクに <code>sprintId</code> が付く」ことである。表示はPBI単位でグルーピングし、データはタスク単位で持つ。</p>
+  </div>
+
+  <h3>スプリント画面の構成</h3>
+  <figure>
+    <svg viewBox="0 0 720 300" role="img" aria-labelledby="f4">
+      <title id="f4">スプリント画面のワイヤーフレーム</title>
+      <defs><style>
+        .w{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#101E26}
+        .wm{font-family:ui-monospace,Menlo,monospace;font-size:9.5px;fill:#5E6E75}
+        .wh{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#0B6E7A;letter-spacing:.06em}
+      </style></defs>
+      <rect x="30" y="20" width="660" height="260" fill="#FFFFFF" stroke="#D3DAD9"/>
+      <rect x="30" y="20" width="660" height="74" fill="#E2EFF1" stroke="#D3DAD9"/>
+      <text x="48" y="42" class="wh">SPRINT 2 · 8/03 – 8/14</text>
+      <text x="48" y="60" class="w">ゴール：ログインしてバックログを閲覧できる</text>
+
+      <text x="392" y="40" class="wm">計画 12 / 22</text>
+      <rect x="392" y="46" width="264" height="9" fill="#FFFFFF" stroke="#D3DAD9"/>
+      <rect x="392" y="46" width="144" height="9" fill="#0B6E7A"/>
+      <polygon points="603,42 599,36 607,36" fill="#101E26"/>
+      <text x="612" y="41" class="wm">8/10 営業日</text>
+      <text x="392" y="72" class="wm">チーム 3 / 5</text>
+      <rect x="392" y="78" width="60" height="9" fill="#FFFFFF" stroke="#D3DAD9"/>
+      <rect x="392" y="78" width="36" height="9" fill="#8A6A1E"/>
+
+      <text x="48" y="116" class="wm">TODO</text>
+      <text x="188" y="116" class="wm">DOING</text>
+      <text x="328" y="116" class="wm">DONE</text>
+      <rect x="44" y="124" width="128" height="140" fill="#F5F7F6" stroke="#E7ECEB"/>
+      <rect x="184" y="124" width="128" height="140" fill="#F5F7F6" stroke="#E7ECEB"/>
+      <rect x="324" y="124" width="128" height="140" fill="#F5F7F6" stroke="#E7ECEB"/>
+
+      <rect x="52" y="132" width="112" height="30" rx="3" fill="#FFFFFF" stroke="#0B6E7A"/>
+      <text x="60" y="144" class="wm" fill="#0B6E7A">PBI-01</text>
+      <text x="60" y="157" class="w">実装</text>
+      <rect x="52" y="168" width="112" height="30" rx="3" fill="#FFFFFF" stroke="#8A6A1E"/>
+      <text x="60" y="180" class="wm" fill="#8A6A1E">◆ チームタスク</text>
+      <text x="60" y="193" class="w">CI 修復</text>
+      <rect x="192" y="132" width="112" height="30" rx="3" fill="#FFFFFF" stroke="#0B6E7A"/>
+      <text x="200" y="144" class="wm" fill="#0B6E7A">PBI-01</text>
+      <text x="200" y="157" class="w">テスト</text>
+      <rect x="332" y="132" width="112" height="30" rx="3" fill="#FFFFFF" stroke="#D3DAD9"/>
+      <text x="340" y="144" class="wm">PBI-01</text>
+      <text x="340" y="157" class="wm">API 設計</text>
+
+      <rect x="466" y="108" width="210" height="158" fill="#F5F7F6" stroke="#D3DAD9"/>
+      <text x="480" y="128" class="wh">DAILY</text>
+      <line x1="480" y1="136" x2="662" y2="136" stroke="#E7ECEB"/>
+      <text x="480" y="154" class="w">NextAction（前回レトロ）</text>
+      <text x="480" y="170" class="wm">・レビュー時間を30分に短縮</text>
+      <text x="480" y="192" class="w">朝会アジェンダ</text>
+      <text x="480" y="208" class="wm">・リリース日程の確認</text>
+      <text x="480" y="230" class="w">議事録</text>
+      <rect x="480" y="238" width="182" height="22" fill="#FFFFFF" stroke="#D3DAD9"/>
+    </svg>
+    <figcaption>図4 — 上部バナー（ゴール・期間・進捗）／中央ボード／右サイドパネル。デイリーはサイドパネルを開くだけで完結する。</figcaption>
+  </figure>
+</section>
+
+<!-- ============ 04 ============ -->
+<section class="sec" id="s4">
+  <h2><span class="n">04</span>ドメインモデル</h2>
+
+  <figure>
+    <svg viewBox="0 0 720 310" role="img" aria-labelledby="f5">
+      <title id="f5">エンティティ関連図</title>
+      <defs><style>
+        .en{font-family:ui-monospace,Menlo,monospace;font-size:12px;fill:#0B6E7A;letter-spacing:.05em}
+        .fl{font-family:ui-monospace,Menlo,monospace;font-size:10px;fill:#5E6E75}
+        .rel{font-family:ui-monospace,Menlo,monospace;font-size:9.5px;fill:#101E26}
+      </style></defs>
+      <rect x="270" y="14" width="170" height="42" rx="4" fill="#FFFFFF" stroke="#0B6E7A" stroke-width="1.5"/>
+      <text x="284" y="33" class="en">Product</text>
+      <text x="284" y="48" class="fl">パーティションの単位</text>
+
+      <rect x="30" y="104" width="170" height="74" rx="4" fill="#FFFFFF" stroke="#0B6E7A"/>
+      <text x="44" y="124" class="en">Sprint</text>
+      <text x="44" y="140" class="fl">number / goal</text>
+      <text x="44" y="154" class="fl">startDate / endDate</text>
+      <text x="44" y="168" class="fl">status</text>
+
+      <rect x="270" y="104" width="170" height="74" rx="4" fill="#FFFFFF" stroke="#0B6E7A" stroke-width="1.5"/>
+      <text x="284" y="124" class="en">PBI</text>
+      <text x="284" y="140" class="fl">status / estimate（任意）</text>
+      <text x="284" y="154" class="fl">completedAt</text>
+      <text x="284" y="168" class="fl">completedSprintId ← 唯一</text>
+
+      <rect x="510" y="104" width="180" height="74" rx="4" fill="#FFFFFF" stroke="#0B6E7A" stroke-width="1.5"/>
+      <text x="524" y="124" class="en">Task</text>
+      <text x="524" y="140" class="fl">taskType: pbi | team</text>
+      <text x="524" y="154" class="fl">sprintId（null 可）</text>
+      <text x="524" y="168" class="fl">status / completedAt</text>
+
+      <rect x="30" y="222" width="170" height="58" rx="4" fill="#FFFFFF" stroke="#D3DAD9"/>
+      <text x="44" y="242" class="en" fill="#5E6E75">DailyNote</text>
+      <text x="44" y="258" class="fl">date（1日1件）</text>
+      <text x="44" y="272" class="fl">agenda / minutes</text>
+
+      <rect x="270" y="222" width="170" height="58" rx="4" fill="#FFFFFF" stroke="#D3DAD9"/>
+      <text x="284" y="242" class="en" fill="#5E6E75">RetroAction</text>
+      <text x="284" y="258" class="fl">createdInSprintId</text>
+      <text x="284" y="272" class="fl">targetSprintId</text>
+
+      <rect x="510" y="222" width="180" height="58" rx="4" fill="#FFFFFF" stroke="#D3DAD9"/>
+      <text x="524" y="242" class="en" fill="#5E6E75">Member</text>
+      <text x="524" y="258" class="fl">entraObjectId（oid）</text>
+      <text x="524" y="272" class="fl">role</text>
+
+      <path d="M355 56 L 355 104" stroke="#0B6E7A"/>
+      <path d="M300 56 L 115 56 L 115 104" stroke="#D3DAD9"/>
+      <path d="M410 56 L 600 56 L 600 104" stroke="#D3DAD9"/>
+      <path d="M440 132 L 510 132" stroke="#0B6E7A" stroke-width="1.5"/>
+      <text x="475" y="126" class="rel" text-anchor="middle">1 : n</text>
+      <path d="M510 160 C 380 200, 200 200, 130 178" fill="none" stroke="#0B6E7A" stroke-width="1.5"/>
+      <polygon points="130,178 138,180 134,172" fill="#0B6E7A"/>
+      <text x="330" y="200" class="rel" text-anchor="middle">task.sprintId（スプリント参照はここだけ）</text>
+      <path d="M115 178 L 115 222" stroke="#D3DAD9"/>
+      <path d="M290 178 L 290 222" stroke="#D3DAD9" stroke-dasharray="3 3"/>
+    </svg>
+    <figcaption>図5 — スプリントを参照するのは <code>Task</code> のみ。<code>PBI</code> は完了地だけを刻印する。</figcaption>
+  </figure>
+
+  <h3>スプリントを持つのはタスクだけ</h3>
+  <p>このモデルで最も重要な一行。<strong>PBIはスプリントへの参照を持たない。</strong> 「PBIが今スプリントに参加している」という状態は、配下タスクに <code>sprintId = S</code> のものが1件以上あることと同義であり、導出できる。</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>フィールド</th><th>可変性</th><th>意味</th></tr></thead>
+      <tbody>
+        <tr><td><code>task.sprintId</code></td><td>可変（完了で事実上凍結）</td><td>今どのスプリントで取り組むか。<code>null</code> は「バックログで待機中」</td></tr>
+        <tr><td><code>task.completedAt</code></td><td><strong>不変</strong></td><td>完了日時。バーンダウンの再現に使う</td></tr>
+        <tr><td><code>pbi.completedAt</code></td><td><strong>不変</strong></td><td>PBIの完了日時</td></tr>
+        <tr><td><code>pbi.completedSprintId</code></td><td><strong>不変</strong></td><td>ベロシティの計上先。日付から逆引きしないのは、<strong>スプリント期間を後から修正すると過去のベロシティが書き換わる</strong>ため</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h4>導出できるもの（保持しない）</h4>
+  <div class="tw">
+    <table>
+      <thead><tr><th>知りたいこと</th><th>導出方法</th></tr></thead>
+      <tbody>
+        <tr><td>PBIが今スプリントにいるか</td><td>配下タスクに <code>sprintId = S</code> が1件以上あるか</td></tr>
+        <tr><td>またいだスプリント数</td><td>配下タスクの <code>sprintId</code> の distinct 件数</td></tr>
+        <tr><td>タスクが完了したスプリント</td><td><code>sprintId</code> そのもの（完了タスクは持ち越されないため凍結している）</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>タスクの3つの居場所</h3>
+  <div class="tw">
+    <table>
+      <thead><tr><th>状態</th><th>表示場所</th></tr></thead>
+      <tbody>
+        <tr><td><code>taskType='pbi'</code>、<code>sprintId</code> あり</td><td>スプリント画面のボード／バックログ画面のPBI配下</td></tr>
+        <tr><td><code>taskType='pbi'</code>、<code>sprintId=null</code></td><td>バックログ画面のPBI配下のみ（待機中）</td></tr>
+        <tr><td><code>taskType='team'</code>、<code>sprintId=null</code></td><td><strong>バックログ画面の「未割当のチームタスク」</strong></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note warn">
+    <span class="lbl">なぜ専用セクションが要るか</span>
+    <p>チームタスクは親PBIを持たないため、スプリントから外すと<strong>どの一覧にも現れずデータが不可視になる</strong>。削除ではなく「未割当」として置き場所を与える。データが見えなくなることは、このアプリで唯一許容できない失敗である。</p>
+  </div>
+
+  <h3>状態遷移</h3>
+  <figure>
+    <svg viewBox="0 0 720 200" role="img" aria-labelledby="f6">
+      <title id="f6">タスクとPBIの状態遷移図</title>
+      <defs><style>
+        .st{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#101E26}
+        .ed{font-family:ui-monospace,Menlo,monospace;font-size:9.5px;fill:#5E6E75}
+        .ttl{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#0B6E7A;letter-spacing:.08em}
+      </style></defs>
+      <text x="30" y="24" class="ttl">TASK</text>
+      <rect x="30" y="36" width="96" height="34" rx="17" fill="#FFFFFF" stroke="#0B6E7A"/>
+      <text x="78" y="58" class="st" text-anchor="middle">todo</text>
+      <rect x="196" y="36" width="96" height="34" rx="17" fill="#FFFFFF" stroke="#0B6E7A"/>
+      <text x="244" y="58" class="st" text-anchor="middle">doing</text>
+      <rect x="362" y="36" width="96" height="34" rx="17" fill="#0B6E7A"/>
+      <text x="410" y="58" class="st" text-anchor="middle" fill="#FFFFFF">done</text>
+      <path d="M126 53 L 194 53" stroke="#101E26"/><polygon points="194,53 186,49 186,57" fill="#101E26"/>
+      <path d="M292 53 L 360 53" stroke="#101E26"/><polygon points="360,53 352,49 352,57" fill="#101E26"/>
+      <text x="410" y="88" class="ed" text-anchor="middle">completedAt ← now()</text>
+      <path d="M410 70 C 410 108, 244 108, 244 72" fill="none" stroke="#9C3B2E" stroke-dasharray="4 3"/>
+      <polygon points="244,72 240,80 248,80" fill="#9C3B2E"/>
+      <text x="327" y="124" class="ed" text-anchor="middle" fill="#9C3B2E">完了取り消し時は completedAt を必ず null に戻す</text>
+
+      <line x1="30" y1="142" x2="690" y2="142" stroke="#E7ECEB"/>
+
+      <text x="30" y="166" class="ttl">PBI</text>
+      <rect x="96" y="152" width="86" height="30" rx="15" fill="#FFFFFF" stroke="#0B6E7A"/>
+      <text x="139" y="171" class="st" text-anchor="middle">new</text>
+      <rect x="212" y="152" width="86" height="30" rx="15" fill="#FFFFFF" stroke="#0B6E7A"/>
+      <text x="255" y="171" class="st" text-anchor="middle">ready</text>
+      <rect x="328" y="152" width="106" height="30" rx="15" fill="#FFFFFF" stroke="#0B6E7A"/>
+      <text x="381" y="171" class="st" text-anchor="middle">inProgress</text>
+      <rect x="464" y="152" width="86" height="30" rx="15" fill="#0B6E7A"/>
+      <text x="507" y="171" class="st" text-anchor="middle" fill="#FFFFFF">done</text>
+      <path d="M182 167 L 210 167" stroke="#101E26"/><polygon points="210,167 202,163 202,171" fill="#101E26"/>
+      <path d="M298 167 L 326 167" stroke="#101E26"/><polygon points="326,167 318,163 318,171" fill="#101E26"/>
+      <path d="M434 167 L 462 167" stroke="#101E26"/><polygon points="462,167 454,163 454,171" fill="#101E26"/>
+      <text x="566" y="171" class="ed">completedSprintId を刻印</text>
+    </svg>
+    <figcaption>図6 — 完了の刻印と、その取り消しが対になっていることが要点。</figcaption>
+  </figure>
+
+  <h3>不変条件</h3>
+  <p>単一のバリデーション関数に集約すること。ここを破ると<strong>タスクがどの一覧にも表示されずに消える</strong>。</p>
+  <div class="tw">
+    <table>
+      <thead><tr><th>#</th><th>条件</th></tr></thead>
+      <tbody>
+        <tr><td class="id">I-1</td><td><code>status != 'done'</code> のとき <code>completedAt</code> は必ず <code>null</code></td></tr>
+        <tr><td class="id">I-2</td><td><code>done</code> にした時点で <code>completedAt</code> を記録。取り消し時は <code>null</code> に戻す</td></tr>
+        <tr><td class="id">I-3</td><td><code>taskType = 'pbi'</code> のとき <code>pbiId</code> は必須</td></tr>
+        <tr><td class="id">I-4</td><td><code>taskType = 'team'</code> のとき <code>pbiId</code> は <code>null</code>。<strong>判別はフィールドの有無ではなく <code>taskType</code> で行う</strong></td></tr>
+        <tr><td class="id">I-5</td><td>完了タスクは持ち越し・除外の対象にしない。<code>sprintId</code> を変更しない</td></tr>
+        <tr><td class="id">I-6</td><td>PBIを <code>done</code> にできるのは配下のPBIタスクがすべて <code>done</code> のときのみ（警告に留め、強制はしない — P-1）</td></tr>
+        <tr><td class="id">I-7</td><td>PBI完了時、<code>completedSprintId</code> には<strong>配下タスクのうち最後に完了したタスクの <code>sprintId</code></strong> を記録する（配下タスクが1件もない場合のみ、完了操作時点のアクティブなスプリント）</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ 05 ============ -->
+<section class="sec" id="s5">
+  <h2><span class="n">05</span>進捗の見せ方</h2>
+  <p class="lede">デイリースクラムで「このペースで計画通り終わるか」を判断するための計器。</p>
+
+  <h3>2本に分ける理由</h3>
+  <p>進捗表示には性質の異なる2つの問いが混ざっている。1本の積み上げバーに載せると、<strong>どちらとしても読めなくなる</strong>。</p>
+  <ul>
+    <li><strong>Q1「計画通り終わりそうか」</strong> — 時間との対比が要る。左から右へ伸びるべきもの</li>
+    <li><strong>Q2「計画外に食われていないか」</strong> — 構成比。伸びるものではない</li>
+  </ul>
+  <p>さらに、チームタスクを分母に含めると<strong>障害対応を追加した瞬間に達成率が下がる</strong>。何もサボっていないのにバーが後退する計器は信用されない。</p>
+
+  <h3>採用する形</h3>
+  <figure>
+    <svg viewBox="0 0 720 210" role="img" aria-labelledby="f7">
+      <title id="f7">計画タスクとチームタスクの2本バー</title>
+      <defs><style>
+        .lb{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#101E26}
+        .nm{font-family:ui-monospace,Menlo,monospace;font-size:13px;fill:#101E26}
+        .sm{font-family:ui-monospace,Menlo,monospace;font-size:10px;fill:#5E6E75}
+      </style></defs>
+      <text x="30" y="34" class="lb">計画タスク</text>
+      <text x="150" y="34" class="nm">完了 12 / 22</text>
+      <rect x="30" y="46" width="484" height="26" fill="#FFFFFF" stroke="#D3DAD9"/>
+      <rect x="30" y="46" width="264" height="26" fill="#0B6E7A"/>
+      <g stroke="#FFFFFF" stroke-width="1" opacity=".55">
+        <line x1="52" y1="46" x2="52" y2="72"/><line x1="74" y1="46" x2="74" y2="72"/>
+        <line x1="96" y1="46" x2="96" y2="72"/><line x1="118" y1="46" x2="118" y2="72"/>
+        <line x1="140" y1="46" x2="140" y2="72"/><line x1="162" y1="46" x2="162" y2="72"/>
+        <line x1="184" y1="46" x2="184" y2="72"/><line x1="206" y1="46" x2="206" y2="72"/>
+        <line x1="228" y1="46" x2="228" y2="72"/><line x1="250" y1="46" x2="250" y2="72"/>
+        <line x1="272" y1="46" x2="272" y2="72"/>
+      </g>
+      <g stroke="#D3DAD9" stroke-width="1">
+        <line x1="316" y1="46" x2="316" y2="72"/><line x1="338" y1="46" x2="338" y2="72"/>
+        <line x1="360" y1="46" x2="360" y2="72"/><line x1="382" y1="46" x2="382" y2="72"/>
+        <line x1="404" y1="46" x2="404" y2="72"/><line x1="426" y1="46" x2="426" y2="72"/>
+        <line x1="448" y1="46" x2="448" y2="72"/><line x1="470" y1="46" x2="470" y2="72"/>
+        <line x1="492" y1="46" x2="492" y2="72"/>
+      </g>
+      <polygon points="417,80 411,90 423,90" fill="#101E26"/>
+      <text x="430" y="90" class="sm">8 / 10 営業日が経過</text>
+      <text x="30" y="108" class="sm">バーの先端がマーカーより左＝このペースでは終わらない</text>
+
+      <line x1="30" y1="124" x2="690" y2="124" stroke="#E7ECEB"/>
+
+      <text x="30" y="152" class="lb">チームタスク</text>
+      <text x="150" y="152" class="nm">完了 3 / 5</text>
+      <rect x="30" y="164" width="110" height="26" fill="#FFFFFF" stroke="#D3DAD9"/>
+      <rect x="30" y="164" width="66" height="26" fill="#8A6A1E"/>
+      <g stroke="#FFFFFF" stroke-width="1" opacity=".55">
+        <line x1="52" y1="164" x2="52" y2="190"/><line x1="74" y1="164" x2="74" y2="190"/>
+      </g>
+      <line x1="118" y1="164" x2="118" y2="190" stroke="#D3DAD9"/>
+      <text x="160" y="182" class="sm">同じ 1 目盛 = 1 件。2本の長さの対比で「計画外に食われた度合い」が読める</text>
+    </svg>
+    <figcaption>図7 — 数字が主役、バーは従。目盛は両者で共通なので長さがそのまま件数比になる。</figcaption>
+  </figure>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>要素</th><th>定義</th></tr></thead>
+      <tbody>
+        <tr><td>計画タスク</td><td><code>sprintId = S</code> かつ <code>taskType = 'pbi'</code></td></tr>
+        <tr><td>チームタスク</td><td><code>sprintId = S</code> かつ <code>taskType = 'team'</code></td></tr>
+        <tr><td>完了</td><td><code>status = 'done'</code></td></tr>
+        <tr><td>マーカー位置</td><td>経過<strong>営業日</strong> ÷ 総営業日。暦日で計算すると週末に必ず遅れて見えるため営業日で数える</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <span class="lbl">分母の増加について</span>
+    <p>作業が進んで解像度が上がれば、PBIのタスクはスプリント中に追加される。<strong>これは健全な進行であり、異常ではない</strong>。したがって分母が増えて達成率が下がることは正常な挙動として受け入れる。</p>
+    <p>「当初は18件だった」という基準値は<strong>持たない</strong>。判断に必要なのは<em>2本の長さの対比</em>と<em>マーカーとの位置関係</em>であり、基準値がなくても成立する。</p>
+  </div>
+
+  <div class="note warn">
+    <span class="lbl">やらないこと</span>
+    <p>遅れているときにバーを警告色にする、チームタスクの比率が閾値を超えたら色を変える、といった機能は<strong>実装しない</strong>。警告を避けるためにチームタスクをPBIタスクとして登録する、という数字合わせを誘発する。色は種別の区別にのみ使い、判断はチームが行う（P-1）。</p>
+  </div>
+
+  <h3>バーンダウンへの拡張余地</h3>
+  <p><code>createdAt</code>（共通フィールド）と <code>completedAt</code> が揃っているため、任意の日の残件数を後から計算できる。</p>
+  <pre><code>D日の残数 = createdAt &lt;= D かつ (completedAt が null または completedAt &gt; D) の件数</code></pre>
+  <p>スプリント中に追加されたタスクも「その日に線が上がる」形で正しく再現される。<strong>日次スナップショットを持たずにバーンダウンを後付けできる</strong>ため、初期スコープから外している（P-3）。</p>
+</section>
+
+<!-- ============ 06 ============ -->
+<section class="sec" id="s6">
+  <h2><span class="n">06</span>データモデル（Cosmos DB）</h2>
+
+  <h3>コンテナ構成</h3>
+  <p><strong>単一コンテナ／パーティションキー <code>/productId</code></strong>。理由は2つある。</p>
+  <ul>
+    <li><strong>コスト</strong> — コンテナごとにスループットを割り当てると最低400 RU/s。無料枠は1000 RU/sなので、3コンテナ作った時点で課金が始まる</li>
+    <li><strong>トランザクショナルバッチ</strong> — 同一論理パーティション内なら複数アイテムの一括更新が原子的に行える。並び替えとスプリント終了処理で効く</li>
+  </ul>
+
+  <h4>共通フィールド</h4>
+  <pre><code>{
+  "id": "pbi_01JXYZ...",     // ULID（時系列にソート可能）
+  "type": "pbi",             // product | pbi | task | sprint | dailyNote | retroAction | member
+  "productId": "prd_001",    // ← パーティションキー
+  "isDeleted": false,        // 論理削除
+  "createdAt": "2026-08-03T09:12:00Z", "createdBy": "&lt;entra oid&gt;",
+  "updatedAt": "2026-08-05T14:02:00Z", "updatedBy": "&lt;entra oid&gt;"
+}</code></pre>
+
+  <h4>PBI</h4>
+  <pre><code>{
+  "type": "pbi",
+  "title": "ログイン機能",
+  "description": "…",
+  "acceptanceCriteria": [ {"id":"ac1","text":"…","checked":false} ],
+  "status": "new | ready | inProgress | done",
+  "estimate": 13,                 // 任意。未設定は null
+  "rank": "0|hzzzzz:",            // 並び順
+  "completedAt": null,            // 完了日時・不変
+  "completedSprintId": null,      // 完了地・不変。ベロシティ計上先
+  "parentPbiId": null             // 分割元
+}</code></pre>
+  <p>スプリントへの参照はこの1つ（<code>completedSprintId</code>）のみ。現在地の保持は行わない。</p>
+
+  <h4>Task</h4>
+  <pre><code>{
+  "type": "task",
+  "taskType": "pbi",         // "pbi" | "team" ← 判別子。必ず持つ
+  "pbiId": "pbi_01JXYZ",     // taskType=team なら null
+  "sprintId": "spr_02",      // null なら「バックログで待機中」
+  "status": "todo | doing | done",
+  "completedAt": null,       // 完了日時・不変
+  "title": "実装",
+  "todo": "実施すること",
+  "memo": "…",
+  "assigneeId": "&lt;entra oid&gt;",
+  "rank": "0|i00000:",
+  "isBlocked": false,
+  "blockedReason": ""
+}</code></pre>
+
+  <h4>Sprint / DailyNote / RetroAction</h4>
+  <pre><code>{ "type":"sprint", "number":2, "goal":"…",
+  "startDate":"2026-08-03", "endDate":"2026-08-14",
+  "status":"planned | active | closed" }
+
+{ "type":"dailyNote", "sprintId":"spr_02", "date":"2026-08-05",
+  "agenda":[ {"id":"a1","text":"…","done":false} ],
+  "minutes":"（markdown）" }
+
+{ "type":"retroAction", "createdInSprintId":"spr_01",
+  "targetSprintId":"spr_02", "text":"…",
+  "status":"open | done | dropped" }</code></pre>
+  <p><code>dailyNote</code> をスプリント単位ではなく<strong>1日1ドキュメント</strong>にしているのは、議事録の追記でドキュメントが肥大化し、同時編集の競合が増えるのを避けるため。</p>
+
+  <h3>並び替え（rank）</h3>
+  <p>設計上もっとも失敗しやすい箇所。パーティションキーより注意を要する。順序は<strong>要素間の相対的な関係</strong>なのに、ドキュメントDBは各要素を独立に保存するため、相対情報を絶対値に落とす必要がある。どの方式にも代償がある。</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>方式</th><th>1回の移動で更新される件数</th><th>壊れ方</th></tr></thead>
+      <tbody>
+        <tr><td>整数 order</td><td>後続すべて</td><td>壊れないがRUを浪費する。100件並ぶと100回書き込み</td></tr>
+        <tr><td>浮動小数 (前+後)/2</td><td>1件</td><td>同じ隙間に約50回連続挿入すると精度が尽き、<strong>順序が不定になる</strong>。リバランスするまで直らない</td></tr>
+        <tr><td><strong>文字列ランク</strong>（fractional indexing）</td><td><strong>1件</strong></td><td><strong>壊れない</strong>。同じ隙間への連続挿入でキーが1文字ずつ伸びるだけ</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h4>採用する仕様</h4>
+  <div class="tw">
+    <table>
+      <thead><tr><th>項目</th><th>決定</th><th>理由</th></tr></thead>
+      <tbody>
+        <tr><td>方式</td><td>文字列ランク（fractional indexing）</td><td>選定軸は実装量ではなく<strong>壊れ方</strong>。順序の破損は発見が遅れる部類で、「並び替えたのに戻る」という報告から原因に辿り着くまでが長い</td></tr>
+        <tr><td>実装</td><td><strong>ライブラリを使う</strong>（<code>fractional-indexing</code> はPython・JSの双方にある）</td><td>先頭・末尾・キー枯渇の境界条件を誤ると順序が壊れ、しかも<strong>壊れたことに気づきにくい</strong></td></tr>
+        <tr><td>文字集合</td><td><strong>Base36</strong>（<code>0-9a-z</code>）</td><td>大文字小文字が混ざらないため、<code>Z</code> と <code>a</code> の比較順という不確実性が原理的に発生しない</td></tr>
+        <tr><td>ソート</td><td><code>ORDER BY c.rank, c.id</code></td><td>2人が同じ位置に同時挿入すると<strong>文字列ランクでも同一キーが生まれる</strong>。ULIDの <code>id</code> をタイブレーカーにすれば全端末で同じ並びになる</td></tr>
+        <tr><td>生成場所</td><td><strong>サーバー側</strong>。APIには前後の要素IDを渡す</td><td>アルゴリズムが1箇所に閉じ、フロントを差し替えても挙動が変わらない</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note warn">
+    <span class="lbl">着手前に検証すること</span>
+    <p>Cosmos DBの文字列比較のルールはドキュメント上明示が薄い。<strong>大文字小文字を区別しない、あるいはカルチャ依存の比較だった場合、並びが静かに壊れる</strong>。B-09の最初の作業として、実データを10件ほど投入し <code>ORDER BY</code> の結果が辞書順と一致するか確認すること。</p>
+    <p>この検証が通らなければ、<strong>浮動小数＋定期リバランスに切り替える</strong>。数値比較なのでこの不確実性がない。リバランスは全件更新になるが、同一パーティションのためトランザクショナルバッチ1回で済む。</p>
+  </div>
+
+  <h4>rankのスコープ</h4>
+  <p>タスクの並び順は<strong>バックログ画面（PBI配下）とボード（列内）の両方</strong>で使われる。同じ <code>rank</code> を共有するため、<strong>ボードで並び替えるとバックログ画面のPBI配下の順序も変わる</strong>。これは仕様として受け入れる。フィールドを分けると二重管理が復活するため、<strong>「タスクの実施順は1つ」</strong>と定義する。</p>
+
+  <h3>運用上の設定</h3>
+  <div class="tw">
+    <table>
+      <thead><tr><th>項目</th><th>方針</th><th>理由</th></tr></thead>
+      <tbody>
+        <tr><td>同時編集</td><td><code>_etag</code> による楽観的排他。更新時に <code>If-Match</code>、412なら再取得</td><td>朝会で複数人が同時にボードを触る。<strong>後から入れると全API改修になる</strong></td></tr>
+        <tr><td>削除</td><td>論理削除（<code>isDeleted</code>）</td><td>誤操作の復旧価値が高く、この規模ならデータ量は問題にならない</td></tr>
+        <tr><td>インデックス</td><td><code>description</code> <code>memo</code> <code>minutes</code> を除外パスに指定</td><td>既定で全プロパティにインデックスが張られる。長文を除くと書き込みRUが目に見えて減る</td></tr>
+        <tr><td>画像</td><td>Blob Storageに置きURLのみ保持</td><td>論理パーティションの上限20GBを守る</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <span class="lbl">採用しない構成</span>
+    <p>Cosmos DBの定石である「関連データの埋め込み」（タスクをPBIドキュメント内に持つ）は採用しない。①「スプリント単位でタスクを取得」がPBI全走査になる ②複数人が別々のタスクを動かすと<strong>同一ドキュメントへの書き込みが競合する</strong> ③チームタスクは親を持てない — の3点による。</p>
+  </div>
+</section>
+
+<!-- ============ 07 ============ -->
+<section class="sec" id="s7">
+  <h2><span class="n">07</span>主要フロー</h2>
+
+  <h3>スプリントプランニング（画面A・右ペイン）</h3>
+  <div class="tw">
+    <table>
+      <thead><tr><th>手順</th><th>操作</th><th>実際に起きること</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>対象スプリントを選びプランニングモードへ</td><td>右ペインが開く</td></tr>
+        <tr><td>2</td><td>PBIにチェック（配下タスクが1件以上）</td><td>配下の未完了タスクの <code>sprintId = S</code></td></tr>
+        <tr><td>3</td><td>PBIにチェック（配下タスクが0件）</td><td><strong>「タスク分解」タスクを1件生成し</strong> <code>sprintId = S</code></td></tr>
+        <tr><td>4</td><td>個別タスクのチェックで微調整</td><td>そのタスクの <code>sprintId</code> のみ変更</td></tr>
+        <tr><td>5</td><td>チームタスクを右ペインに追加</td><td><code>taskType='team'</code> を作成し <code>sprintId = S</code></td></tr>
+        <tr><td>6</td><td>スプリントゴールを入力</td><td><code>sprint.goal</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <span class="lbl">「タスク分解」タスクの意味</span>
+    <p>タスクが0件のPBIをスプリントに入れたとき、システムは「タスク分解」というタスクを1件生成する。これは辻褄合わせではなく、<strong>「やる作業はあるが、まだ分解できていない」という実在の状態</strong>を最小限の形で表したものである。その場で分解すれば即座に完了にでき、後回しにするならそれ自体がスプリント中の作業になる。</p>
+    <p>この規則により、<strong>「タスクが無いのにスプリントにいるPBI」という状態が構造的に存在しなくなる</strong>。</p>
+  </div>
+
+  <h3>スプリントから外す</h3>
+  <p>持ち越しとまったく同じ規則で書ける。</p>
+  <pre><code>sprintId = S かつ status != 'done' のタスク  →  sprintId = null</code></pre>
+  <p><strong>完了タスクは動かさない。</strong> スプリント2で終わらせた作業は、PBIを外してもスプリント2の実績である。外した結果 <code>sprintId = null</code> で残るタスク（「タスク分解」を含む）は、<strong>バックログで待機中の正常な状態</strong>であり、次にそのPBIを取り込んだときそのまま再利用される。</p>
+
+  <h3>スプリント終了処理</h3>
+  <p>持ち越しはここに集約する。<strong>複雑さは頻度の低い操作に寄せる</strong>という方針による。</p>
+  <pre><code># 1. 未完了タスクを次スプリントへ（完了タスクは動かさない）
+UPDATE task
+   SET sprintId = &lt;nextSprintId&gt;
+ WHERE productId = &lt;pid&gt; AND sprintId = &lt;closingSprintId&gt;
+   AND status != 'done'
+
+# 2. スプリントを締める
+UPDATE sprint SET status = 'closed'</code></pre>
+
+  <div class="note">
+    <span class="lbl">UI</span>
+    <p>「スプリントを終了」を押した時点で<strong>持ち越される一覧をプレビュー表示</strong>してから確定する。強制も警告もせず、事実だけを見せる（P-1）。</p>
+  </div>
+
+  <h3>主要クエリ</h3>
+  <div class="tw">
+    <table>
+      <thead><tr><th>用途</th><th>クエリ</th><th>備考</th></tr></thead>
+      <tbody>
+        <tr><td>ボード表示</td><td><code>WHERE productId=@p AND type='task' AND sprintId=@s AND NOT isDeleted</code></td><td><strong>1クエリで完結する</strong>。最頻出</td></tr>
+        <tr><td>バックログ表示</td><td><code>WHERE type='pbi' AND status!='done' ORDER BY rank, id</code></td><td></td></tr>
+        <tr><td>PBIのタスク</td><td><code>WHERE type='task' AND pbiId=@id ORDER BY rank, id</code></td><td>PBI展開時。<code>sprintId</code> をバッジ表示</td></tr>
+        <tr><td>未割当チームタスク</td><td><code>WHERE type='task' AND taskType='team' AND sprintId=null</code></td><td>バックログ画面下部</td></tr>
+        <tr><td>ベロシティ</td><td><code>WHERE type='pbi' AND completedSprintId=@s</code> の <code>estimate</code> 合計</td><td><code>estimate</code> 未設定は除外</td></tr>
+        <tr><td>またいだスプリント数</td><td><code>WHERE type='task' AND pbiId=@id</code> の <code>sprintId</code> distinct 件数</td><td>PBI行のバッジ表示</td></tr>
+        <tr><td>NextAction</td><td><code>WHERE type='retroAction' AND targetSprintId=@s AND status='open'</code></td><td></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ 08 ============ -->
+<section class="sec" id="s8">
+  <h2><span class="n">08</span>認証・認可</h2>
+
+  <figure>
+    <svg viewBox="0 0 720 210" role="img" aria-labelledby="f8">
+      <title id="f8">MSALによる認証構成図</title>
+      <defs><style>
+        .bx{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#0B6E7A}
+        .sm2{font-family:ui-monospace,Menlo,monospace;font-size:9.5px;fill:#5E6E75}
+      </style></defs>
+      <rect x="24" y="60" width="150" height="70" rx="4" fill="#FFFFFF" stroke="#0B6E7A" stroke-width="1.5"/>
+      <text x="38" y="82" class="bx">Angular SPA</text>
+      <text x="38" y="100" class="sm2">@azure/msal-angular</text>
+      <text x="38" y="116" class="sm2">PKCE（シークレット不要）</text>
+
+      <rect x="285" y="14" width="150" height="56" rx="4" fill="#E2EFF1" stroke="#0B6E7A"/>
+      <text x="299" y="36" class="bx">Microsoft Entra ID</text>
+      <text x="299" y="54" class="sm2">アプリ登録 / トークン発行</text>
+
+      <rect x="285" y="118" width="150" height="70" rx="4" fill="#FFFFFF" stroke="#0B6E7A" stroke-width="1.5"/>
+      <text x="299" y="140" class="bx">Python API</text>
+      <text x="299" y="158" class="sm2">FastAPI</text>
+      <text x="299" y="174" class="sm2">PyJWT で検証</text>
+
+      <rect x="546" y="118" width="150" height="70" rx="4" fill="#FFFFFF" stroke="#D3DAD9"/>
+      <text x="560" y="140" class="bx" fill="#5E6E75">Cosmos DB</text>
+      <text x="560" y="158" class="sm2">マネージドID接続</text>
+      <text x="560" y="174" class="sm2">（キーレス）</text>
+
+      <path d="M120 60 C 120 30, 200 22, 283 30" fill="none" stroke="#101E26"/>
+      <polygon points="283,30 275,26 274,34" fill="#101E26"/>
+      <text x="176" y="20" class="sm2">① サインイン</text>
+      <path d="M300 70 C 260 92, 200 96, 150 92" fill="none" stroke="#101E26"/>
+      <polygon points="150,92 158,88 158,96" fill="#101E26"/>
+      <text x="212" y="112" class="sm2">② アクセストークン</text>
+      <path d="M174 108 L 283 140" stroke="#101E26"/>
+      <polygon points="283,140 275,136 272,144" fill="#101E26"/>
+      <text x="186" y="136" class="sm2">③ Bearer</text>
+      <path d="M360 118 L 360 74" stroke="#D3DAD9" stroke-dasharray="4 3"/>
+      <text x="368" y="100" class="sm2">④ JWKSで署名検証</text>
+      <path d="M435 152 L 544 152" stroke="#101E26"/>
+      <polygon points="544,152 536,148 536,156" fill="#101E26"/>
+    </svg>
+    <figcaption>図8 — App ServiceのEasy Authは使わず、MSAL＋JWT検証で構成する。ローカルでも本番と同じ経路を通せる。</figcaption>
+  </figure>
+
+  <h3>アプリ登録チェックリスト</h3>
+  <p><strong>設定漏れは後の工程で分かりにくい形で表面化する</strong>ため、一度でまとめて済ませる。</p>
+  <div class="tw">
+    <table>
+      <thead><tr><th>設定項目</th><th>備考</th></tr></thead>
+      <tbody>
+        <tr><td>シングルテナントで登録</td><td>外部テナントのユーザーをサインイン画面に到達させない</td></tr>
+        <tr><td><strong>プラットフォームは「シングルページアプリケーション」</strong></td><td>「Web」で登録されると <code>AADSTS9002326</code> で必ず詰まる。最頻出の事故</td></tr>
+        <tr><td>APIの公開：スコープ <code>api://&lt;clientId&gt;/access_as_user</code></td><td><code>User.Read</code> で得られるGraph用トークンは自作APIでは検証できない</td></tr>
+        <tr><td>マニフェスト <code>requestedAccessTokenVersion: 2</code></td><td></td></tr>
+        <tr><td>APIアクセス許可：<code>openid</code> <code>profile</code> <code>email</code></td><td></td></tr>
+        <tr><td>エンタープライズアプリ側で「割り当てが必要」= はい ＋ 利用者を割り当て</td><td>ユーザー単位の割り当てはEntra ID Freeで可能</td></tr>
+        <tr><td>控えるもの：テナントID／クライアントID</td><td>SPAのためクライアントシークレットは不要</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h4>リダイレクトURI（3つまとめて登録する）</h4>
+  <pre><code>https://&lt;アプリ名&gt;.azurewebsites.net           ← 本番 SPA
+http://localhost:4200                        ← ローカル開発
+https://&lt;アプリ名&gt;.azurewebsites.net/.auth/login/aad/callback
+                                             ← Easy Auth に切替える場合の保険</code></pre>
+  <p>ローカル用を忘れると開発初日に止まる。3つ登録しておけば、後から方式を変えても登録し直しが要らない。</p>
+
+  <h3>Python側の検証項目</h3>
+  <div class="tw">
+    <table>
+      <thead><tr><th>#</th><th>検証</th></tr></thead>
+      <tbody>
+        <tr><td class="id">V-1</td><td>署名 — JWKSエンドポイントの公開鍵で <code>RS256</code> 検証（鍵はキャッシュする）</td></tr>
+        <tr><td class="id">V-2</td><td><code>aud</code> がクライアントIDと一致</td></tr>
+        <tr><td class="id">V-3</td><td><code>iss</code> が <code>https://login.microsoftonline.com/&lt;tenantId&gt;/v2.0</code></td></tr>
+        <tr><td class="id">V-4</td><td><code>scp</code> に <code>access_as_user</code> が含まれる</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>アプリ内の認可</h3>
+  <p>Entra IDには<strong>本人確認のみを任せる</strong>。「誰がどのプロダクトのメンバーか」はアプリ側（<code>member</code> ドキュメント）で持つ。Entra IDのグループ単位の割り当てはP1ライセンスが必要であり、またメンバー管理はバックログ運用そのものと一体だからである。</p>
+  <p>ユーザー識別子には <code>oid</code>（テナント内で不変のオブジェクトID）を使う。<strong>メールアドレスは変わり得るのでキーにしない</strong>。</p>
+</section>
+
+<!-- ============ 09 ============ -->
+<section class="sec" id="s9">
+  <h2><span class="n">09</span>技術構成とコスト</h2>
+  <div class="tw">
+    <table>
+      <thead><tr><th>レイヤ</th><th>採用</th><th>無料枠</th><th>制約</th></tr></thead>
+      <tbody>
+        <tr><td>フロントエンド</td><td>Angular（MSAL Angular）</td><td>—</td><td>ビルド成果物をApp Serviceから配信</td></tr>
+        <tr><td>バックエンド</td><td>Python / FastAPI</td><td>—</td><td>—</td></tr>
+        <tr><td>ホスティング</td><td>App Service <strong>F1</strong></td><td>あり</td><td>1日60 CPU分、RAM 1GB、独自ドメインのTLS不可、Always On不可、20分アイドルでスリープ</td></tr>
+        <tr><td>データベース</td><td>Cosmos DB <strong>無料レベル</strong></td><td>1000 RU/s ＋ 25GB</td><td>1サブスクリプションに1アカウントのみ。サーバーレスでは使用不可</td></tr>
+        <tr><td>認証</td><td>Entra ID <strong>Free</strong></td><td>あり</td><td>グループ単位の割り当て・条件付きアクセスはP1以上</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note warn">
+    <span class="lbl">運用上の注意</span>
+    <p>Azureには自動の支出上限がない。<strong>無料枠を超えた瞬間から課金が始まる</strong>ため、予算アラートを初日に設定すること。また無料レベルは既定で選択されていないので、リソース作成時に明示的に選ぶ必要がある。</p>
+  </div>
+
+  <p>フロントとAPIを<strong>同一App Serviceに同居</strong>させる。App Serviceが1つで済み、CORS設定も不要になる。F1のスリープが実用上の障害になった時点でB1へのスケールアップを検討する。</p>
+
+  <h3>環境構築の再現性</h3>
+  <p>Azureリソースの作成とEntra IDアプリ登録は、<strong>再実行できる形で残す</strong>。無料枠の作り直し、検証環境の追加、メンバーの増加で必ず再実行されるためである。</p>
+  <p>ポータルのクリック手順を文章にした手順書は<strong>UIの変更で静かに陳腐化し、古くなったことに気づけない</strong>。<code>az</code> CLIのスクリプトを手順の中心に置き、GUIでしか操作できない部分だけを文章で補う。具体的な内容は本書とは別のセットアップ手順書として管理する。</p>
+</section>
+
+<!-- ============ 10 ============ -->
+<section class="sec" id="s10">
+  <h2><span class="n">10</span>設計判断の記録</h2>
+  <p class="lede">この仕様が一般的なスクラムツールと違う箇所には、すべて理由がある。</p>
+  <p>仕様を変更したくなったら、まずこの表を引くこと。<strong>却下した案も併記してある</strong>ので、「その案はすでに検討されて落ちたのか、まだ検討されていないのか」が判別できる。</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>#</th><th>決定</th><th>却下した案</th><th>理由</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="id">D-01</td>
+          <td>画面はイベント別に作らず<strong>2画面＋モード</strong></td>
+          <td>イベントごとに専用画面</td>
+          <td>実体は同じデータの見せ方の違い。専用画面にすると「どれを開くか」が毎回発生する</td>
+        </tr>
+        <tr>
+          <td class="id">D-02</td>
+          <td>PBIが<strong>複数スプリントにまたがることを許容</strong></td>
+          <td>1スプリントで完了する粒度を強制</td>
+          <td>スクラムの原則ではあるが現実には守れない。分割を強制するより、目の前の実現に集中させて管理コストを下げる（P-2）</td>
+        </tr>
+        <tr>
+          <td class="id">D-03</td>
+          <td>チームタスクを <code>taskType</code> で<strong>明示的に区別</strong></td>
+          <td>① <code>pbiId</code> が <code>null</code> かで判別<br>② スプリントごとに「チーム運営PBI」を自動生成</td>
+          <td>①Cosmos DBはスキーマレスのため「未設定」と「バグで書き損ね」が区別できない ②結局は特別扱いのフラグが必要になり、判別子を持つのと変わらない</td>
+        </tr>
+        <tr>
+          <td class="id">D-04</td>
+          <td>タスクが <code>sprintId</code> を<strong>持つ</strong></td>
+          <td>タスクはスプリントを持たず、所属PBIから導出する</td>
+          <td>持たせることで①ボード取得が1クエリになる ②チームタスクの非対称が解消する ③<strong>PBIの中で今スプリントにやるタスクを表現できる</strong>。これによりまたいでいるPBIがあってもスプリントバックログの100%消化を目標にできる</td>
+        </tr>
+        <tr>
+          <td class="id">D-05</td>
+          <td>過去スプリントの完了率は<strong>常に100%</strong>。持ち越し数を記録しない</td>
+          <td>スプリント締め時に <code>carriedOverCount</code> を記録</td>
+          <td>過去スプリントは予実管理ではなくベロシティ計測のためにある。<strong>タスク数は粒度も難易度もばらつくため、そもそも計測指標として不適</strong></td>
+        </tr>
+        <tr>
+          <td class="id">D-06</td>
+          <td><code>estimate</code> は<strong>任意項目</strong>。合計ポイントを前面に出さない</td>
+          <td>プランニング画面に合計ポイントを常時表示</td>
+          <td>安定したチームではポイントを振る限界効用が下がる。未見積りだと常に0と表示され「振れ」という無言の圧力になる（P-1）。ただしフィールドは残す — <strong>無い項目は後から遡って埋められない</strong>（P-3）</td>
+        </tr>
+        <tr>
+          <td class="id">D-07</td>
+          <td>タスクの依存関係の可視化を<strong>スコープ外</strong>とする</td>
+          <td>依存グラフの描画</td>
+          <td>実装コストが高い割に、並び順＋ブロック中フラグで大半が足りる。後から足しても過去データを失わない（P-3）</td>
+        </tr>
+        <tr>
+          <td class="id">D-08</td>
+          <td><strong>単一コンテナ</strong>／PK <code>/productId</code></td>
+          <td>エンティティごとにコンテナを分割</td>
+          <td>コンテナごとに最低400 RU/s。無料枠1000 RU/sを3コンテナで超える。加えて同一パーティション内のバッチ更新が使えなくなる</td>
+        </tr>
+        <tr>
+          <td class="id">D-09</td>
+          <td>タスクをPBIに<strong>埋め込まない</strong></td>
+          <td>Cosmos DBの定石どおり子を埋め込む</td>
+          <td>スプリント単位の取得がPBI全走査になり、複数人の同時更新が同一ドキュメントで競合する。チームタスクは親を持てない</td>
+        </tr>
+        <tr>
+          <td class="id">D-10</td>
+          <td>Easy Authではなく<strong>MSAL＋JWT検証</strong></td>
+          <td>App Service Easy Auth</td>
+          <td>Easy Authはローカル実行時に認証が効かずモックが必要になる。MSALならローカルでも本番と同じ経路を通せる。※リダイレクトURIは両方登録し切替可能にしておく</td>
+        </tr>
+        <tr>
+          <td class="id">D-11</td>
+          <td>PBIは<strong>スプリント参照を持たない</strong>（<code>task.sprintId</code> に一本化）</td>
+          <td>PBIに <code>currentSprintId</code> と <code>sprintIds[]</code> を持たせる</td>
+          <td>「PBIが今スプリントにいる」は配下タスクから導出できるため<strong>二重管理になる</strong>。持たせないことで、スプリント終了処理からPBI更新が消え、守るべき不変条件が1つ減る。唯一導出できない「タスク0件でスプリントにいるPBI」は<a href="#s10">D-15</a>で解消している</td>
+        </tr>
+        <tr>
+          <td class="id">D-12</td>
+          <td>タスクは <code>completedAt</code> を持ち、<strong>完了スプリントIDは持たない</strong></td>
+          <td><code>task.completedSprintId</code> に完了スプリントを刻印</td>
+          <td>完了タスクは持ち越されないため <code>sprintId</code> は完了時点で凍結する。つまり<strong>完了スプリントIDは常に <code>sprintId</code> と一致する冗長フィールドになる</strong>。<code>completedAt</code> にすれば日単位の情報が増え、バーンダウンの後付けが可能になる。※<code>pbi.completedSprintId</code> は日付逆引きだとスプリント期間の修正で過去が書き換わるため保持する</td>
+        </tr>
+        <tr>
+          <td class="id">D-13</td>
+          <td>進捗は<strong>件数主役の2本バー</strong>。「当初件数」は持たない</td>
+          <td>① 4区分の積み上げバー1本<br>② スプリント開始時の件数を記録して「当初18→+4」と表示</td>
+          <td>①「計画通り終わるか」と「計画外に食われていないか」は別の問いで、同じ軸に載せると両方読めなくなる。またチームタスクを分母に含めると<strong>障害対応の追加で達成率が下がる</strong> ②判断に必要なのは2本の長さの対比とマーカーとの位置関係であり、基準値がなくても成立する</td>
+        </tr>
+        <tr>
+          <td class="id">D-14</td>
+          <td>プランニングは<strong>バックログ画面の右ペイン</strong></td>
+          <td>スプリント画面から「PBIを追加」する</td>
+          <td>主役は選ぶ対象であるバックログの側。優先順位順の一覧を崩さず上から引くのは<strong>プル型というスクラムの動きそのもの</strong>。スプリント画面は「動かす」ことに最適化してあり、探して選ぶ操作を混ぜるとデイリーで重くなる。※スプリント中の差し込み用に同じパネルを画面Bからも開ける</td>
+        </tr>
+        <tr>
+          <td class="id">D-15</td>
+          <td>タスク0件のPBIを取り込んだら<strong>「タスク分解」タスクを自動生成</strong></td>
+          <td>タスクのないPBIをスプリントに置けるようにする</td>
+          <td>「やる作業はあるが、まだ分解できていない」という実在の状態を最小の形で表す。その場で分解すれば即完了でき、後回しならスプリント中の作業として妥当。これで<strong>特別な状態を作らずに済む</strong></td>
+        </tr>
+        <tr>
+          <td class="id">D-16</td>
+          <td>バックログ画面に<strong>「未割当のチームタスク」</strong>を置く</td>
+          <td>スプリントから外したチームタスクは削除する</td>
+          <td>チームタスクは親PBIを持たないため、外すとどの一覧にも現れず<strong>データが不可視になる</strong>。削除を強制するのはP-1に反する</td>
+        </tr>
+        <tr>
+          <td class="id">D-17</td>
+          <td>PBIの <code>completedSprintId</code> は<strong>最後に完了したタスクのスプリント</strong></td>
+          <td>PBIを完了にした操作時点のアクティブスプリント</td>
+          <td>実作業がどこで終わったかを表すのはタスク側。全タスクがスプリント2で終わったPBIを事務的にスプリント3で閉じても、<strong>成果はスプリント2のもの</strong>である。副作用として締めたスプリントのベロシティが後から増えるが、事実を歪めるより望ましい（P-1）。3スプリントの移動平均で見る運用（<a href="#s11">Q-3</a>）とも整合する</td>
+        </tr>
+        <tr>
+          <td class="id">D-18</td>
+          <td>並び替えは<strong>文字列ランク</strong>（ライブラリ利用・Base36・<code>ORDER BY rank, id</code>・サーバー側生成）</td>
+          <td>① 整数連番 ② 浮動小数の中点＋定期リバランス ③ 自前実装</td>
+          <td>選定軸は実装量ではなく<strong>壊れ方</strong>。浮動小数は精度が尽きた瞬間に順序が不定になり、リバランスするまで直らない。文字列ランクはキーが伸びるだけで壊れない。③を採らないのは、境界条件の誤りが<strong>気づきにくい形で順序を壊す</strong>ため（P-2）。※Cosmos DBの文字列ソート挙動の検証が前提であり、通らなければ②に切り替える</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ 11 ============ -->
+<section class="sec" id="s11">
+  <h2><span class="n">11</span>今後の検討事項</h2>
+  <p class="lede">実装を止めるものはない。着手しながら判断してよい。</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>#</th><th>区分</th><th>内容</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="id">Q-1</td>
+          <td><span class="chip in">実装時に検証</span></td>
+          <td>Cosmos DBの <code>ORDER BY</code> が文字列の辞書順と一致するか。一致しない場合は <code>rank</code> を浮動小数＋定期リバランスに切り替える（<a href="#s12">B-09</a>の最初の作業）</td>
+        </tr>
+        <tr>
+          <td class="id">Q-2</td>
+          <td><span class="chip open">運用で判断</span></td>
+          <td>「タスク分解」タスクが役目を終えたあとの扱い。通常のタスクとして完了・削除すればよいが放置されやすい。使ってみてから決める</td>
+        </tr>
+        <tr>
+          <td class="id">Q-3</td>
+          <td><span class="chip in">運用方針</span></td>
+          <td>ベロシティは<strong>3スプリントの移動平均</strong>で見る。またいだPBIは完了スプリントに全ポイントが計上されるため単スプリントの数値は振れるが、按分などの補正は行わない</td>
+        </tr>
+        <tr>
+          <td class="id">Q-4</td>
+          <td><span class="chip open">将来</span></td>
+          <td>ポイントを使わないチーム向けの軽量な予測 — 「直近3スプリントの<strong>完了PBI数</strong>」。PBIはユーザー価値で区切られるためタスク数より粒度が揃う。必要なデータは <code>completedSprintId</code> で既に取得できる</td>
+        </tr>
+        <tr>
+          <td class="id">Q-5</td>
+          <td><span class="chip open">将来</span></td>
+          <td>バーンダウンチャート。<code>createdAt</code> と <code>completedAt</code> から再現できるため、スプリント締め時のサマリドキュメントは不要</td>
+        </tr>
+        <tr>
+          <td class="id">Q-6</td>
+          <td><span class="chip out">見送り</span></td>
+          <td>議事録への画像添付（Blob Storage連携）、タスク依存関係の可視化</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ 12 ============ -->
+<section class="sec" id="s12">
+  <h2><span class="n">12</span>実装バックログ</h2>
+  <p class="lede">このサービスを作るためのPBI一覧。優先順位順に並べてある。</p>
+
+  <p><strong>M3を終えた時点で、このバックログ自体をこのアプリで管理できる状態になる。</strong> そこから先はドッグフーディングで進める — 作りたいものを作りながら、使い勝手の問題が自分たちに返ってくる状態にするのが最短の検証になる。</p>
+
+  <div class="note">
+    <span class="lbl">着手順について</span>
+    <p>外部のリードタイムに依存する作業はないため、<strong>着手順を縛る制約は依存関係だけ</strong>である。ただしB-05・B-06はB-01が済むまで動作確認できないので、早い段階で片付けておくと後の手戻りが減る。</p>
+    <p>アプリ登録とリソース作成は<strong>再現できる形で残すこと</strong>（<a href="#s9">09章</a>）。一度きりの作業に見えるが、無料枠の作り直し、検証環境の追加、メンバーの増加で必ず再実行される。</p>
+  </div>
+
+  <h3>マイルストーン</h3>
+  <div class="tw">
+    <table>
+      <thead><tr><th>#</th><th>到達点</th><th>含むPBI</th></tr></thead>
+      <tbody>
+        <tr><td class="id">M1</td><td>サインインして自分のデータが1件表示できる（歩ける骨格）</td><td>B-01 〜 B-07</td></tr>
+        <tr><td class="id">M2</td><td>プロダクトバックログが運用できる</td><td>B-08 〜 B-14</td></tr>
+        <tr><td class="id">M3</td><td><strong>スプリントが1周回る</strong> — ここからドッグフーディング</td><td>B-15 〜 B-19</td></tr>
+        <tr><td class="id">M4</td><td>デイリースクラムがこの画面だけで完結する</td><td>B-20 〜 B-22</td></tr>
+        <tr><td class="id">M5</td><td>実運用に耐える</td><td>B-23 〜 B-24</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>PBI一覧</h3>
+  <div class="tw">
+    <table>
+      <thead><tr><th>#</th><th>PBI</th><th>完了条件</th><th>依存</th></tr></thead>
+      <tbody>
+        <tr><td class="id">B-01</td><td>Entra IDにアプリを登録する</td><td><a href="#s8">08章</a>のチェックリスト全項目が完了し、テナントIDとクライアントIDが控えてある。リダイレクトURI3種が登録済み。<strong>手順が再実行可能な形で残っている</strong></td><td>—</td></tr>
+        <tr><td class="id">B-02</td><td>Azureリソースを用意する</td><td>App Service F1とCosmos DB無料レベルが作成され、<strong>予算アラートが設定されている</strong></td><td>—</td></tr>
+        <tr><td class="id">B-03</td><td>プロジェクトの骨格を作る</td><td>Angularのビルド成果物をFastAPIが配信し、ローカルで1コマンド起動できる</td><td>—</td></tr>
+        <tr><td class="id">B-04</td><td>デプロイパイプラインを通す</td><td>mainへのpushでApp Serviceに自動デプロイされ、公開URLで表示できる</td><td>B-02, B-03</td></tr>
+        <tr><td class="id">B-05</td><td>フロントエンドのサインイン</td><td>MSALでサインインでき、未認証ユーザーはガードで弾かれる。ローカルでも同じ経路で動く</td><td>B-01</td></tr>
+        <tr><td class="id">B-06</td><td>APIのトークン検証</td><td><a href="#s8">V-1〜V-4</a>をすべて通過したリクエストのみ200を返す。改ざんトークンで401</td><td>B-01</td></tr>
+        <tr><td class="id">B-07</td><td>データアクセス基盤</td><td>単一コンテナが作成され、インデックス除外パスが設定済み。共通フィールド付与・論理削除・<code>_etag</code>楽観排他が共通処理として動く</td><td>B-02</td></tr>
+        <tr><td class="id">B-08</td><td>PBIのCRUD API</td><td>作成・取得・更新・論理削除ができ、不正な状態遷移が弾かれる</td><td>B-06, B-07</td></tr>
+        <tr><td class="id">B-09</td><td>並び替え（rank）</td><td><strong>Cosmos DBの <code>ORDER BY</code> が辞書順と一致することを実データで確認済み</strong>。1件を移動したとき更新されるドキュメントが1件だけである。同一キーが生じても <code>ORDER BY rank, id</code> で全端末の並びが一致する</td><td>B-07</td></tr>
+        <tr><td class="id">B-10</td><td>プロダクトバックログ画面</td><td>PBIが優先順位順に並び、ドラッグで並び替えでき、ステータスを変更できる</td><td>B-05, B-08, B-09</td></tr>
+        <tr><td class="id">B-11</td><td>PBI詳細</td><td>概要、完了条件のチェックリスト、<code>estimate</code>（<strong>任意入力・未設定でも警告を出さない</strong>）を編集できる</td><td>B-10</td></tr>
+        <tr><td class="id">B-12</td><td>PBIの分割</td><td>分割で生成されたPBIが <code>parentPbiId</code> で元を参照し、一覧から辿れる</td><td>B-10</td></tr>
+        <tr><td class="id">B-13</td><td>タスクのCRUD</td><td><a href="#s4">I-1〜I-5</a>のバリデーションが<strong>単一の関数に集約</strong>されている。<code>taskType='team'</code> でも作成できる</td><td>B-07, B-08</td></tr>
+        <tr><td class="id">B-14</td><td>メンバー管理と認可</td><td>プロダクトのメンバーでないユーザーは403。<code>oid</code> をキーにしている</td><td>B-06, B-07</td></tr>
+        <tr><td class="id">B-15</td><td>スプリントのCRUD</td><td>期間とゴールを設定でき、planned / active / closed が遷移する</td><td>B-07</td></tr>
+        <tr><td class="id">B-16</td><td>プランニングモード（右ペイン）</td><td>PBIのチェックで配下タスクが投入され、<strong>タスク0件なら「タスク分解」が1件生成される</strong>。外すと未完了タスクのみ <code>sprintId=null</code> に戻る</td><td>B-10, B-13, B-15</td></tr>
+        <tr><td class="id">B-17</td><td>スプリント画面のボード</td><td>todo / doing / done をドラッグで移動でき、ブロック中を立てられる。<strong>2人が同時に触っても片方の更新が消えない</strong></td><td>B-13, B-15</td></tr>
+        <tr><td class="id">B-18</td><td>進捗表示</td><td><a href="#s5">05章</a>の2本バーが表示され、マーカーが<strong>営業日</strong>で計算されている。警告色を使っていない</td><td>B-17</td></tr>
+        <tr><td class="id">B-19</td><td>スプリント終了処理</td><td>持ち越し対象の一覧をプレビューしてから確定でき、<strong>完了タスクは移動しない</strong></td><td>B-15, B-17</td></tr>
+        <tr><td class="id">B-20</td><td>デイリーパネル</td><td>アジェンダと議事録を編集でき、1日1ドキュメントで保存される</td><td>B-17</td></tr>
+        <tr><td class="id">B-21</td><td>NextActionの表示</td><td>前スプリントのアクションが今スプリントのパネルに出て、完了にできる</td><td>B-20</td></tr>
+        <tr><td class="id">B-22</td><td>未割当のチームタスク</td><td>スプリントから外したチームタスクがバックログ画面に現れる（<strong>どこにも表示されない状態が存在しない</strong>）</td><td>B-10, B-16</td></tr>
+        <tr><td class="id">B-23</td><td>ベロシティ表示</td><td><code>completedSprintId</code> ごとの <code>estimate</code> 合計が出る。未設定は除外され、<strong>3スプリントの移動平均</strong>で表示される</td><td>B-19</td></tr>
+        <tr><td class="id">B-24</td><td>本番運用の確認</td><td>F1のスリープからの復帰時間とRU消費を実測し、無料枠に収まることを確認。予算アラートが発火することを確認済み</td><td>B-04, 全機能</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <span class="lbl">完了条件の書き方について</span>
+    <p>上記の完了条件は、<strong>設計判断が実装に落ちたかを確認できる形</strong>で書いてある。たとえばB-09は「並び替えができる」ではなく「更新が1件だけ」、B-18は「バーが出る」ではなく「営業日で計算され警告色を使っていない」としている。設計と実装が乖離する典型は、機能は動くが判断の理由が失われる形なので、そこを条件に含めている。</p>
+  </div>
+
+  <hr class="div">
+</section>
+
+</main>
+</div>
+
+<script>
+(function(){
+  var links = Array.prototype.slice.call(document.querySelectorAll('.rail a'));
+  var map = {};
+  links.forEach(function(a){ map[a.getAttribute('href').slice(1)] = a; });
+  var secs = Array.prototype.slice.call(document.querySelectorAll('.sec'));
+  if(!('IntersectionObserver' in window)) return;
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(e.isIntersecting){
+        links.forEach(function(a){ a.classList.remove('on'); });
+        var a = map[e.target.id];
+        if(a) a.classList.add('on');
+      }
+    });
+  }, { rootMargin: '-10% 0px -80% 0px', threshold: 0 });
+  secs.forEach(function(s){ io.observe(s); });
+})();
+</script>
+</body>
+</html>
