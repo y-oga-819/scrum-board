@@ -108,7 +108,7 @@ export function msalGuardConfigFactory(): MsalGuardConfiguration {
  * これで B-04（API のトークン検証）まで端から端まで繋がる。
  */
 export function msalInterceptorConfigFactory(): MsalInterceptorConfiguration {
-  const protectedResourceMap = new Map<string, Array<string> | null>([
+  const protectedResourceMap = new Map<string, string[] | null>([
     // 相対パス（同一オリジン）。ヘルスチェックを含む全 /api にトークンを付ける。
     ['/api', [API_SCOPE]],
   ]);

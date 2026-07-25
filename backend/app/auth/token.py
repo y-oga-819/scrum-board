@@ -14,8 +14,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Any
 
 import jwt
 
@@ -33,9 +34,7 @@ class VerifiedToken:
     claims: Mapping[str, Any]
 
 
-def verify_token(
-    token: str, *, settings: AuthSettings, jwks: JwksProvider
-) -> VerifiedToken:
+def verify_token(token: str, *, settings: AuthSettings, jwks: JwksProvider) -> VerifiedToken:
     """トークンを V-1〜V-4 で検証し、通ればクレームを返す。"""
     # ヘッダから kid を取り出し、対応する公開鍵を得る（V-1 の前段）。
     try:
@@ -70,9 +69,7 @@ def verify_token(
     # V-4（scp に access_as_user が含まれる）。scp は空白区切りの文字列。
     scopes = str(claims.get("scp", "")).split()
     if settings.required_scope not in scopes:
-        raise InvalidTokenError(
-            f"required scope {settings.required_scope!r} not in 'scp'"
-        )
+        raise InvalidTokenError(f"required scope {settings.required_scope!r} not in 'scp'")
 
     # oid はユーザー識別子（提案書 08章。メールではなく oid をキーにする）。
     # これが無いと誰なのか解決できないので、検証の一部として必須にする。

@@ -12,7 +12,9 @@ BACKEND_DIR  := backend
 PORT         ?= 8000
 
 .PHONY: help install install-frontend install-backend build build-frontend \
-        dev dev-frontend dev-backend run test test-frontend test-backend clean
+        dev dev-frontend dev-backend run test test-frontend test-backend \
+        lint lint-frontend lint-backend typecheck typecheck-frontend \
+        typecheck-backend clean
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | \
@@ -61,6 +63,26 @@ test-frontend: ## Run frontend (Karma/Jasmine) tests headlessly
 	# ChromeHeadlessNoSandbox is provided by the Angular builder; --no-sandbox is
 	# required when running as root (CI / web sessions).
 	cd $(FRONTEND_DIR) && npm test -- --watch=false --browsers=ChromeHeadlessNoSandbox
+
+## ---- lint / typecheck -------------------------------------------------------
+
+lint: lint-backend lint-frontend ## Run all linters
+
+lint-backend: ## Lint backend (ruff check + format check)
+	cd $(BACKEND_DIR) && uv run ruff check . && uv run ruff format --check .
+
+lint-frontend: ## Lint frontend (ESLint)
+	cd $(FRONTEND_DIR) && npm run lint
+
+typecheck: typecheck-backend typecheck-frontend ## Run all type checks
+
+typecheck-backend: ## Type-check backend (mypy)
+	cd $(BACKEND_DIR) && uv run mypy
+
+typecheck-frontend: ## Type-check frontend (tsc --noEmit)
+	cd $(FRONTEND_DIR) && npm run typecheck
+
+## ---- clean ------------------------------------------------------------------
 
 clean: ## Remove build artifacts and caches
 	rm -rf $(FRONTEND_DIR)/dist $(FRONTEND_DIR)/.angular

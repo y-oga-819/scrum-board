@@ -53,8 +53,9 @@ async def current_user(
     except InvalidTokenError:
         # 原因（署名不正・aud 不一致・スコープ欠落…）は応答に出さない。ログには
         # resolver 側で必要に応じて残す。利用者には汎用の 401 を返す。
+        # from None: 元例外は意図的に伏せる（原因を応答にもトレースにも載せない）。
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated",
             headers={"WWW-Authenticate": "Bearer"},
-        )
+        ) from None
