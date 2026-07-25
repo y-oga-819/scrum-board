@@ -1,59 +1,52 @@
-# Frontend
+# フロントエンド（Angular）
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 20.3.32.
+Scrum Board の SPA。[Angular CLI](https://github.com/angular/angular-cli) 20 系で生成。
+ビルド成果物（`dist/`）は同一 App Service 上の FastAPI が配信する（提案書 09 章）。
 
-## Development server
+> セットアップ・起動・テストは基本的に**リポジトリのルートから `make` 経由**で行う。
+> 全体像はルートの [`README`](../README.md) を参照。ここは frontend 固有の補足のみ。
 
-To start a local development server, run:
-
-```bash
-ng serve
-```
-
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
-
-## Code scaffolding
-
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+## 開発サーバー
 
 ```bash
-ng generate component component-name
+ng serve   # ルートからは `make dev`（frontend :4200 + backend :8000 を同時起動）
 ```
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+`http://localhost:4200/` を開く。ソースを変更すると自動でリロードされる。
+`/api` へのリクエストは `proxy.conf.json` により FastAPI（`:8000`）へプロキシされる
+（本番と同じく単一オリジンで動かすため）。
+
+## コード生成
 
 ```bash
-ng generate --help
+ng generate component <名前>   # コンポーネント生成
+ng generate --help             # 生成できるもの一覧（component / directive / pipe など）
 ```
 
-## Building
-
-To build the project run:
+## ビルド
 
 ```bash
-ng build
+ng build   # ルートからは `make build-frontend`
 ```
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
+成果物は `dist/frontend/browser/` に出力される（本番向けに最適化される）。
+FastAPI はこのディレクトリを配信する。
 
-## Running unit tests
+## ユニットテスト
 
-To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
+[Karma](https://karma-runner.github.io) で実行する。
 
 ```bash
 ng test
+# ルート実行（root/CI ではサンドボックス無効化が必要）:
+#   make test-frontend   → --browsers=ChromeHeadlessNoSandbox で起動
 ```
 
-## Running end-to-end tests
+## E2E テスト
 
-For end-to-end (e2e) testing, run:
+Angular CLI は E2E フレームワークを同梱しない。本プロジェクトでは **B-11（テスト基盤）**
+で Playwright を導入する予定（`docs/decisions/D-19`）。
 
-```bash
-ng e2e
-```
+## 参考
 
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+- [Angular CLI コマンドリファレンス](https://angular.dev/tools/cli)
