@@ -12,10 +12,14 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MsalBroadcastService, MsalService } from '@azure/msal-angular';
 import {
   AccountInfo,
+  AuthenticationResult,
   EventType,
+  InteractionRequiredAuthError,
   InteractionStatus,
 } from '@azure/msal-browser';
-import { filter } from 'rxjs';
+import { Observable, filter, tap } from 'rxjs';
+
+import { LOGIN_SCOPES } from './auth.config';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -35,22 +39,77 @@ export class AuthService {
   /**
    * リダイレクト応答を処理し、アカウント状態の追従を始める。
    * ルート（App）の初期化から1度だけ呼ぶ。
+   *
+   * 返す Observable はリダイレクト応答の処理が済むと完了する。呼び出し側は
+   * これの完了を待ってから {@link restoreSession} を呼ぶ（リダイレクト直後は
+   * 既にアカウントが取れており、無音復元を先に走らせると二重処理になるため）。
    */
-  handleRedirect(): void {
+  handleRedirect(): Observable<AuthenticationResult | null> {
+    this.watchAccountChanges();
+
     // サインインのリダイレクトから戻ってきたハッシュを処理する。
+    // 購読は呼び出し側（App）が行う。二重に handleRedirectObservable を
+    // 呼ばないよう、ここでは購読せず Observable を返すだけにする。
+    return this.msal.handleRedirectObservable().pipe(
+      tap((result) => {
+        if (result?.account) {
+          this.msal.instance.setActiveAccount(result.account);
+        }
+        this.syncActiveAccount();
+      }),
+      takeUntilDestroyed(this.destroyRef),
+    );
+  }
+
+  /**
+   * 起動時にサインイン状態を無音で復元する。
+   *
+   * トークンは sessionStorage 限定なのでタブを開き直すと消えるが、Entra 側の
+   * ブラウザセッションはタブを跨いで生きている。それを使って対話なしで
+   * トークンを取り直す（無音更新が効く「期間」は組織の Entra ポリシーに委ねる）。
+   *
+   * リダイレクト処理（{@link handleRedirect}）の**完了後**に呼ぶこと。
+   */
+  restoreSession(): void {
+    // 既にアカウントがあれば復元済み。無駄な通信（ssoSilent）を避ける。
+    const accounts = this.msal.instance.getAllAccounts();
+    if (accounts.length > 0) {
+      this.msal.instance.setActiveAccount(accounts[0]);
+      this.syncActiveAccount();
+      return;
+    }
+
+    // アカウントが無い＝タブを開き直したケース。Entra のブラウザセッションで
+    // 無音サインインを試みる。スコープはガードと同一（LOGIN_SCOPES）。
     this.msal
-      .handleRedirectObservable()
+      .ssoSilent({ scopes: [...LOGIN_SCOPES] })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (result) => {
-          if (result?.account) {
+          if (result.account) {
             this.msal.instance.setActiveAccount(result.account);
           }
           this.syncActiveAccount();
         },
-        error: (err) => console.error('[auth] redirect handling failed', err),
+        error: (err) => {
+          if (err instanceof InteractionRequiredAuthError) {
+            // 無音では復元できない（対話が必要）。エラーにはせず未サインインの
+            // まま進める。ルートガードが通常どおりリダイレクトログインへ送る。
+            return;
+          }
+          // それ以外は予期しない失敗。状態は未サインインのまま、ログだけ残す。
+          console.error('[auth] silent sign-in failed', err);
+        },
       });
+  }
 
+  /** リダイレクト方式でサインアウトする。 */
+  logout(): void {
+    this.msal.logoutRedirect({ account: this._account() ?? undefined });
+  }
+
+  /** ログイン成功・各インタラクションの完了に追従してアカウント状態を取り直す。 */
+  private watchAccountChanges(): void {
     // ログイン成功イベントでアクティブアカウントを確定させる。
     this.broadcast.msalSubject$
       .pipe(
@@ -68,11 +127,6 @@ export class AuthService {
       .subscribe(() => this.syncActiveAccount());
 
     this.syncActiveAccount();
-  }
-
-  /** リダイレクト方式でサインアウトする。 */
-  logout(): void {
-    this.msal.logoutRedirect({ account: this._account() ?? undefined });
   }
 
   /** MSAL のキャッシュからアクティブアカウントを読み直し、signal に反映する。 */
