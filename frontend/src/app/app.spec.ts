@@ -38,4 +38,11 @@ describe('App', () => {
     fixture.detectChanges();
     expect(authStub.handleRedirect).toHaveBeenCalled();
   });
+
+  it('attempts a silent session restore after the redirect completes', () => {
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    // handleRedirect() の完了後に無音復元が走る（スタブは of(null) で即完了）。
+    expect(authStub.restoreSession).toHaveBeenCalled();
+  });
 });
