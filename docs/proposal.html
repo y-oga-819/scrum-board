@@ -1178,9 +1178,9 @@ https://&lt;アプリ名&gt;.azurewebsites.net/.auth/login/aad/callback
 
         <tr>
           <td class="id">D-21</td>
-          <td><strong>認証は後から載せる</strong> — ゲスト経路を先に作り、ユーザー解決を<strong>ポートで差し替える</strong>。<strong>サンドボックスを1枚挟んで</strong>鶏卵問題を解く。初期データは<strong>マイグレーション機構</strong>で投入し、<code>user</code> は <code>_system</code> 予約パーティションに置く<br><span class="chip in">詳細</span> <code>docs/decisions/D-21-bootstrap-and-migration.md</code></td>
-          <td>① 認証を先に完成させてから画面を作る ② ゲスト経路を <code>if guest:</code> の分岐で実装 ③ ゲスト経路を本番でも有効にする ④ 初回サインイン者を自動的にadminにする ⑤ 毎起動で <code>ensure</code> を走らせる ⑥ <code>user</code> を各プロダクトに複製</td>
-          <td>①<strong>画面開発がEntra IDのアプリ登録を待つ直列になる</strong>。設定漏れが表面化しにくい工程を全員が待つ ②分岐がハンドラ全体に散り、第2段階が全面改修になる ③<strong>無料枠を外部から枯渇させられ、F1が止まれば本番も巻き添え</strong>になる ④実行順でadminが決まり、同時サインイン時の競合が残る ⑤<strong>再デプロイのたびに実データを設定値で上書きする事故</strong>が起きうる ⑥表示名の更新が全プロダクトに伝播しない</td>
+          <td><strong>認証を最初に実証する</strong>（PoCが主題）。認証と認可を<strong>データ層の要否で分割</strong>する。ユーザー解決は<strong>ポートで抽象化</strong>し、テスト・ゲストを差し替えで表現する。<strong>サンドボックスを1枚挟んで</strong>鶏卵問題を解く。初期データは<strong>マイグレーション機構</strong>で投入し、<code>user</code> は <code>_system</code> 予約パーティションに置く<br><span class="chip in">詳細</span> <code>docs/decisions/D-21-bootstrap-and-migration.md</code></td>
+          <td>① ゲスト経路を先に作り認証を後回しにする ② ゲスト経路を <code>if guest:</code> の分岐で実装 ③ ゲスト経路を本番でも有効にする ④ 初回サインイン者を自動的にadminにする ⑤ 毎起動で <code>ensure</code> を走らせる ⑥ <code>user</code> を各プロダクトに複製</td>
+          <td>①<strong>プロジェクトの主題を最後に回すことになる</strong>。最も不確実な箇所の検証が遅れ、設定漏れが後工程で表面化する ②分岐がハンドラ全体に散り、実装の差し替えができなくなる ③<strong>無料枠を外部から枯渇させられ、F1が止まれば本番も巻き添え</strong>になる ④実行順でadminが決まり、同時サインイン時の競合が残る ⑤<strong>再デプロイのたびに実データを設定値で上書きする事故</strong>が起きうる ⑥表示名の更新が全プロダクトに伝播しない</td>
         </tr>
       </tbody>
     </table>
@@ -1289,7 +1289,9 @@ https://&lt;アプリ名&gt;.azurewebsites.net/.auth/login/aad/callback
     <span class="lbl">着手順について</span>
     <p>外部のリードタイムに依存する作業はないため、<strong>着手順を縛る制約は依存関係だけ</strong>である。</p>
     <p><strong>M0（B-00・B-25・B-29）は他PBIの品質を担保する土台</strong>である。テスト基盤とAPI共通規約が無いままB-08以降を書くと、退行検知と規約の一貫性が後追いになり手戻りが増える。B-03と並行して早期に片付ける。</p>
-    <p><strong>M1で認証を作らないのが要点</strong>である（D-21）。ゲスト経路（B-30）を先に置くことで、<strong>画面開発がEntra IDのアプリ登録を待たなくなる</strong>。M2以降の認証基盤は、M3以降の画面開発と並行して進められる。認証を先に完成させる順序だと、設定漏れが後工程で分かりにくい形で表面化するB-01を全員が待つことになる。</p>
+    <p><strong>M1・M2が本プロジェクトの主題である</strong>（D-21）。本アプリは「Easy Authを使わないEntra IDの認証・認可」を実証するPoCを兼ねており、<strong>最も不確実な部分を最初に検証する</strong>順序を取る。Entra IDの設定漏れは後工程で分かりにくい形で表面化する（<a href="#s8">08章</a>）ため、後回しにする理由がない。</p>
+    <p><strong>認証と認可を分けているのが順序設計の要点</strong>である。認証（B-05・B-06）は<strong>データストアを必要とせず</strong>、ローカルの <code>localhost:4200</code> だけで検証できる。認可（B-14・B-27）は <code>member</code> をCosmosに持つためデータ層を要する。この境界でM1とM2を切ることで、PoCの核心に最短で到達できる。</p>
+    <p>M3の土台（テスト・API規約）はスクラム機能の作り込みに先立って必要になるが、PoC自体を無検証で進めるのは避けたいため、<strong>V-1〜V-4のテストはB-06の完了条件に含め</strong>、テスト基盤の全体構築を待たない。</p>
     <p>アプリ登録とリソース作成は<strong>再現できる形で残すこと</strong>（<a href="#s9">09章</a>）。一度きりの作業に見えるが、無料枠の作り直し、検証環境の追加、メンバーの増加で必ず再実行される。</p>
   </div>
 
@@ -1298,14 +1300,14 @@ https://&lt;アプリ名&gt;.azurewebsites.net/.auth/login/aad/callback
     <table>
       <thead><tr><th>#</th><th>到達点</th><th>含むPBI</th></tr></thead>
       <tbody>
-        <tr><td class="id">M0</td><td>開発の土台（テスト・CI・API規約・リポジトリ規約）</td><td>B-00, B-25, B-29</td></tr>
-        <tr><td class="id">M1</td><td><strong>ゲストでサンドボックスを操作できる</strong> — ここから画面開発が解禁される</td><td>B-02, B-03, B-04, B-07, B-26, B-30</td></tr>
-        <tr><td class="id">M2</td><td>Entra IDでサインインでき、初回ログインでサンドボックスに参加する</td><td>B-01, B-05, B-06, B-14, B-27</td></tr>
-        <tr><td class="id">M3</td><td>プロダクトバックログが運用できる</td><td>B-08 〜 B-13</td></tr>
-        <tr><td class="id">M4</td><td><strong>スプリントが1周回る</strong> — ここからドッグフーディング</td><td>B-15 〜 B-19, B-28</td></tr>
-        <tr><td class="id">M5</td><td>デイリースクラムがこの画面だけで完結する</td><td>B-20 〜 B-22</td></tr>
-        <tr><td class="id">M6</td><td>実運用に耐える</td><td>B-23 〜 B-24</td></tr>
-        <tr><td class="id">M7</td><td><span class="chip open">将来</span> プロジェクトを自分たちで管理できる</td><td>B-31, B-32</td></tr>
+        <tr><td class="id">M1</td><td><strong>1ページがEntra IDで保護される</strong> — Easy Authを使わない認証がPoCとして通る</td><td>B-03, B-01, B-05, B-06, B-02, B-04</td></tr>
+        <tr><td class="id">M2</td><td><strong>認可まで通る</strong> — 非メンバーは403、初回サインインでサンドボックスに自動参加</td><td>B-07, B-26, B-14, B-27</td></tr>
+        <tr><td class="id">M3</td><td>開発の土台（テスト・CI・API規約・リポジトリ規約）</td><td>B-00, B-25, B-29, B-30</td></tr>
+        <tr><td class="id">M4</td><td>プロダクトバックログが運用できる</td><td>B-08 〜 B-13</td></tr>
+        <tr><td class="id">M5</td><td><strong>スプリントが1周回る</strong> — ここからドッグフーディング</td><td>B-15 〜 B-19, B-28</td></tr>
+        <tr><td class="id">M6</td><td>デイリースクラムがこの画面だけで完結する</td><td>B-20 〜 B-22</td></tr>
+        <tr><td class="id">M7</td><td>実運用に耐える</td><td>B-23 〜 B-24</td></tr>
+        <tr><td class="id">M8</td><td><span class="chip open">将来</span> プロジェクトを自分たちで管理できる</td><td>B-31, B-32</td></tr>
       </tbody>
     </table>
   </div>
@@ -1315,39 +1317,39 @@ https://&lt;アプリ名&gt;.azurewebsites.net/.auth/login/aad/callback
     <table>
       <thead><tr><th>M</th><th>#</th><th>PBI</th><th>完了条件</th><th>依存</th></tr></thead>
       <tbody>
-        <tr><td class="id">M0</td><td class="id">B-00</td><td>テスト戦略とCI基盤</td><td><strong>D-19の4層</strong>（不変条件／API／Cosmos契約／E2E）が pytest・Vitest・Playwright で構築され、CIで自動実行され<strong>失敗でマージがブロックされる</strong>。不変条件 <a href="#s4">I-1〜I-7</a> のテーブル駆動テスト雛形がある。層1・2が<strong>Cosmosなしで走る</strong></td><td>B-03</td></tr>
-        <tr><td class="id">M0</td><td class="id">B-25</td><td>API共通規約の策定</td><td><strong>D-20</strong>に従い、RFC 9457 のエラー形式（401／403／404／409／<strong>412＝楽観排他</strong>／<strong>428＝<code>If-Match</code>欠落</strong>／422）が共通処理として動く。<code>violations</code> に<strong>不変条件IDが機械可読で載る</strong>。OpenAPIからのTS型生成がCIで差分検出される</td><td>B-06</td></tr>
-        <tr><td class="id">M0</td><td class="id">B-29</td><td>リポジトリ規約の整備</td><td>LICENSE・README（開発セットアップ手順）・コミット規約・ブランチ戦略・開発ガイドが揃っている</td><td>—</td></tr>
+        <tr><td class="id">M1</td><td class="id">B-03</td><td>プロジェクトの骨格を作る</td><td>Angularのビルド成果物をFastAPIが配信し、ローカルで1コマンド起動できる。<strong>画面が1ページ表示される</strong>（認証をかける対象になる）</td><td>—</td></tr>
+        <tr><td class="id">M1</td><td class="id">B-01</td><td>Entra IDにアプリを登録する</td><td><a href="#s8">08章</a>のチェックリスト全項目が完了し、テナントIDとクライアントIDが控えてある。リダイレクトURI3種が登録済み。<strong>手順が再実行可能な形で残っている</strong></td><td>—</td></tr>
+        <tr><td class="id">M1</td><td class="id">B-05</td><td>フロントエンドのサインイン</td><td>MSALでサインインでき、<strong>未認証ユーザーはルートガードで弾かれる</strong>。ローカルでも同じ経路で動く（Easy Authに依存しない — D-10）</td><td>B-01, B-03</td></tr>
+        <tr><td class="id">M1</td><td class="id">B-06</td><td>APIのトークン検証</td><td><a href="#s8">V-1〜V-4</a>をすべて通過したリクエストのみ200を返す。改ざんトークンで401。<strong>V-1〜V-4のテストが書かれている</strong>（テスト基盤の全体構築を待たない）。<strong>ユーザー解決がポートとして切り出され</strong>、テストで差し替えられる（D-21）。サインイン後、<strong>APIが検証した <code>oid</code> が画面に表示される</strong>（認証が端から端まで通ったことの可視化）</td><td>B-01, B-03</td></tr>
         <tr><td class="id">M1</td><td class="id">B-02</td><td>Azureリソースを用意する</td><td>App Service F1とCosmos DB無料レベルが作成され、<strong>予算アラートが設定されている</strong></td><td>—</td></tr>
-        <tr><td class="id">M1</td><td class="id">B-03</td><td>プロジェクトの骨格を作る</td><td>Angularのビルド成果物をFastAPIが配信し、ローカルで1コマンド起動できる</td><td>—</td></tr>
-        <tr><td class="id">M1</td><td class="id">B-04</td><td>デプロイパイプラインを通す</td><td>mainへのpushでApp Serviceに自動デプロイされ、公開URLで表示できる</td><td>B-02, B-03</td></tr>
-        <tr><td class="id">M1</td><td class="id">B-07</td><td>データアクセス基盤</td><td>単一コンテナが作成され、インデックス除外パスが設定済み。共通フィールド付与・論理削除・<code>_etag</code>楽観排他が共通処理として動く。<strong>全クエリで <code>NOT isDeleted</code> を漏れなく除外する共通処理を含む</strong>。<strong>Repositoryがポートとして抽象化され、テスト用フェイクに差し替えられる</strong>（D-19）</td><td>B-02</td></tr>
-        <tr><td class="id">M1</td><td class="id">B-26</td><td>マイグレーション機構と初期データ</td><td><strong>適用済みバージョンを記録する</strong>マイグレーション機構が動き、未適用のものだけが順に適用される。サンドボックス（<code>prd_sandbox</code>）と本番（<code>prd_scrum_board</code>）の <code>product</code> が作成される。<strong><code>_system</code> 予約パーティション</strong>が使われている（D-21）</td><td>B-07</td></tr>
-        <tr><td class="id">M1</td><td class="id">B-30</td><td><strong>ゲストログイン経路</strong></td><td><strong>Entra IDなしでサンドボックスを操作できる</strong>。ユーザー解決が<strong>ポートとして切り出され、<code>if guest:</code> の分岐がハンドラに無い</strong>。ゲストは<strong>本番プロジェクトにアクセスできない</strong>。環境変数で制御され<strong>本番では既定でOFF</strong>（D-21）</td><td>B-07, B-26</td></tr>
-        <tr><td class="id">M2</td><td class="id">B-01</td><td>Entra IDにアプリを登録する</td><td><a href="#s8">08章</a>のチェックリスト全項目が完了し、テナントIDとクライアントIDが控えてある。リダイレクトURI3種が登録済み。<strong>手順が再実行可能な形で残っている</strong></td><td>—</td></tr>
-        <tr><td class="id">M2</td><td class="id">B-05</td><td>フロントエンドのサインイン</td><td>MSALでサインインでき、未認証ユーザーはガードで弾かれる。ローカルでも同じ経路で動く</td><td>B-01</td></tr>
-        <tr><td class="id">M2</td><td class="id">B-06</td><td>APIのトークン検証</td><td><a href="#s8">V-1〜V-4</a>をすべて通過したリクエストのみ200を返す。改ざんトークンで401。<strong>ユーザー解決ポートの差し替えのみで載る</strong>（B-30の実装が変更されない — D-21）</td><td>B-01, B-30</td></tr>
+        <tr><td class="id">M1</td><td class="id">B-04</td><td>デプロイパイプラインを通す</td><td>mainへのpushでApp Serviceに自動デプロイされ、公開URLで表示できる。<strong>公開URLでもサインインが通る</strong>（本番リダイレクトURIの確認）</td><td>B-02, B-03</td></tr>
+        <tr><td class="id">M2</td><td class="id">B-07</td><td>データアクセス基盤</td><td>単一コンテナが作成され、インデックス除外パスが設定済み。共通フィールド付与・論理削除・<code>_etag</code>楽観排他が共通処理として動く。<strong>全クエリで <code>NOT isDeleted</code> を漏れなく除外する共通処理を含む</strong>。<strong>Repositoryがポートとして抽象化され、テスト用フェイクに差し替えられる</strong>（D-19）</td><td>B-02</td></tr>
+        <tr><td class="id">M2</td><td class="id">B-26</td><td>マイグレーション機構と初期データ</td><td><strong>適用済みバージョンを記録する</strong>マイグレーション機構が動き、未適用のものだけが順に適用される。サンドボックス（<code>prd_sandbox</code>）と本番（<code>prd_scrum_board</code>）の <code>product</code> が作成される。<strong><code>_system</code> 予約パーティション</strong>が使われている（D-21）</td><td>B-07</td></tr>
         <tr><td class="id">M2</td><td class="id">B-14</td><td>メンバー管理と認可</td><td>プロダクトのメンバーでないユーザーは403。<code>oid</code> をキーにし、<strong><code>id=mbr_&lt;oid&gt;</code> でポイントリード1件</strong>で判定する（D-21）</td><td>B-06, B-07</td></tr>
-        <tr><td class="id">M2</td><td class="id">B-27</td><td>ユーザー登録と認可ブートストラップ</td><td>初回サインインで <code>user</code> が作られ、<strong>サンドボックスに自動アサインされる</strong>（403で詰まる経路が無い）。同時サインインの競合が握りつぶされる。本番プロジェクトへの登録は<strong>再実行可能なスクリプト</strong>で行う。<code>GET /api/me</code> がゲストと実ユーザーで同じ形を返す（D-21）</td><td>B-06, B-14, B-26</td></tr>
-        <tr><td class="id">M3</td><td class="id">B-08</td><td>PBIのCRUD API</td><td>作成・取得・更新・論理削除ができ、不正な状態遷移が弾かれる。<strong><code>PATCH</code>/<code>DELETE</code> は <code>If-Match</code> 必須</strong>（欠落は428・不一致は412 — D-20）</td><td>B-06, B-07</td></tr>
-        <tr><td class="id">M3</td><td class="id">B-09</td><td>並び替え（rank）</td><td><strong>Cosmos DBの <code>ORDER BY</code> が辞書順と一致することを実データで確認済み</strong>（<strong>実サービスで確認すること。エミュレータでの確認は不可</strong> — D-19）。1件を移動したとき更新されるドキュメントが1件だけである。同一キーが生じても <code>ORDER BY rank, id</code> で全端末の並びが一致する</td><td>B-07</td></tr>
-        <tr><td class="id">M3</td><td class="id">B-10</td><td>プロダクトバックログ画面</td><td>PBIが優先順位順に並び、ドラッグで並び替えでき、ステータスを変更できる。<strong><code>GET /backlog</code>（画面単位）で1往復</strong>（D-20）</td><td>B-30, B-08, B-09</td></tr>
-        <tr><td class="id">M3</td><td class="id">B-11</td><td>PBI詳細</td><td>概要、完了条件のチェックリスト、<code>estimate</code>（<strong>任意入力・未設定でも警告を出さない</strong>）を編集できる</td><td>B-10</td></tr>
-        <tr><td class="id">M3</td><td class="id">B-12</td><td>PBIの分割</td><td>分割で生成されたPBIが <code>parentPbiId</code> で元を参照し、一覧から辿れる</td><td>B-10</td></tr>
-        <tr><td class="id">M3</td><td class="id">B-13</td><td>タスクのCRUD</td><td><a href="#s4">I-1〜I-5</a>のバリデーションが<strong>単一の関数に集約</strong>されている。<code>taskType='team'</code> でも作成できる</td><td>B-07, B-08</td></tr>
-        <tr><td class="id">M4</td><td class="id">B-15</td><td>スプリントのCRUD</td><td>期間とゴールを設定でき、planned / active / closed が遷移する</td><td>B-07</td></tr>
-        <tr><td class="id">M4</td><td class="id">B-16</td><td>プランニングモード（右ペイン）</td><td>PBIのチェックで配下タスクが投入され、<strong>タスク0件なら「タスク分解」が1件生成される</strong>。外すと未完了タスクのみ <code>sprintId=null</code> に戻る。<strong>この規則は専用エンドポイントとしてサーバー側に閉じている</strong>（D-20）</td><td>B-10, B-13, B-15</td></tr>
-        <tr><td class="id">M4</td><td class="id">B-17</td><td>スプリント画面のボード</td><td>todo / doing / done をドラッグで移動でき、ブロック中を立てられる。<strong>2人が同時に触っても片方の更新が消えない</strong></td><td>B-13, B-15</td></tr>
-        <tr><td class="id">M4</td><td class="id">B-18</td><td>進捗表示</td><td><a href="#s5">05章</a>の2本バーが表示され、マーカーが<strong>営業日</strong>で計算されている。警告色を使っていない。<strong>祝日・タイムゾーンの扱いを決めてある</strong>。<strong>「今日」が注入可能で、日付を固定してテストできる</strong>（D-19）</td><td>B-17</td></tr>
-        <tr><td class="id">M4</td><td class="id">B-19</td><td>スプリント終了処理</td><td>持ち越し対象の一覧をプレビューしてから確定でき、<strong>完了タスクは移動しない</strong></td><td>B-15, B-17</td></tr>
-        <tr><td class="id">M4</td><td class="id">B-28</td><td>楽観排他（412）のUX</td><td>412発生時の振る舞い（自動再取得マージ／再操作を促す 等）が決まり、ボード操作全体で一貫して適用される。<strong>更新が黙って消える経路が存在しない</strong></td><td>B-17</td></tr>
-        <tr><td class="id">M5</td><td class="id">B-20</td><td>デイリーパネル</td><td>アジェンダと議事録を編集でき、1日1ドキュメントで保存される</td><td>B-17</td></tr>
-        <tr><td class="id">M5</td><td class="id">B-21</td><td>NextActionの表示</td><td>前スプリントのアクションが今スプリントのパネルに出て、完了にできる</td><td>B-20</td></tr>
-        <tr><td class="id">M5</td><td class="id">B-22</td><td>未割当のチームタスク</td><td>スプリントから外したチームタスクがバックログ画面に現れる（<strong>どこにも表示されない状態が存在しない</strong>）</td><td>B-10, B-16</td></tr>
-        <tr><td class="id">M6</td><td class="id">B-23</td><td>ベロシティ表示</td><td><code>completedSprintId</code> ごとの <code>estimate</code> 合計が出る。未設定は除外され、<strong>3スプリントの移動平均</strong>で表示される</td><td>B-19</td></tr>
-        <tr><td class="id">M6</td><td class="id">B-24</td><td>本番運用の確認</td><td>F1のスリープからの復帰時間とRU消費を実測し、無料枠に収まることを確認。予算アラートが発火することを確認済み</td><td>B-04, 全機能</td></tr>
-        <tr><td class="id">M7</td><td class="id">B-31</td><td><span class="chip open">将来</span> プロジェクト作成</td><td>ユーザーがプロジェクトを作成でき、<strong>作成者が <code>admin</code> として登録される</strong>。<code>_system</code> が予約語として弾かれる（D-21）</td><td>B-27</td></tr>
-        <tr><td class="id">M7</td><td class="id">B-32</td><td><span class="chip open">将来</span> 招待・参加申請・権限付与</td><td>作成者が招待でき、ユーザーが参加申請でき（<code>joinRequest</code>）、作成者が承認・拒否できる。共同管理者は<strong><code>role</code> を <code>admin</code> にするだけで表現される</strong>（新しいroleを作らない — D-21）</td><td>B-31</td></tr>
+        <tr><td class="id">M2</td><td class="id">B-27</td><td>ユーザー登録と認可ブートストラップ</td><td>初回サインインで <code>user</code> が作られ、<strong>サンドボックスに自動アサインされる</strong>（403で詰まる経路が無い）。同時サインインの競合が握りつぶされる。本番プロジェクトへの登録は<strong>再実行可能なスクリプト</strong>で行う。<code>GET /api/me</code> がゲストと実ユーザーで同じ形を返す（D-21）</td><td>B-14, B-26</td></tr>
+        <tr><td class="id">M3</td><td class="id">B-00</td><td>テスト戦略とCI基盤</td><td><strong>D-19の4層</strong>（不変条件／API／Cosmos契約／E2E）が pytest・Vitest・Playwright で構築され、CIで自動実行され<strong>失敗でマージがブロックされる</strong>。不変条件 <a href="#s4">I-1〜I-7</a> のテーブル駆動テスト雛形がある。層1・2が<strong>Cosmosなしで走る</strong></td><td>B-03</td></tr>
+        <tr><td class="id">M3</td><td class="id">B-25</td><td>API共通規約の策定</td><td><strong>D-20</strong>に従い、RFC 9457 のエラー形式（401／403／404／409／<strong>412＝楽観排他</strong>／<strong>428＝<code>If-Match</code>欠落</strong>／422）が共通処理として動く。<code>violations</code> に<strong>不変条件IDが機械可読で載る</strong>。OpenAPIからのTS型生成がCIで差分検出される</td><td>B-06</td></tr>
+        <tr><td class="id">M3</td><td class="id">B-29</td><td>リポジトリ規約の整備</td><td>LICENSE・README（開発セットアップ手順）・コミット規約・ブランチ戦略・開発ガイドが揃っている</td><td>—</td></tr>
+        <tr><td class="id">M3</td><td class="id">B-30</td><td><strong>ゲストログイン経路</strong></td><td><span class="chip open">任意</span> <strong>開発時にサインインを省略できる</strong>抜け道。B-06のユーザー解決ポートに<strong>もう1つの実装を足すだけ</strong>で、<code>if guest:</code> の分岐がハンドラに無い。ゲストは<strong>サンドボックス限定</strong>で本番プロジェクトにアクセスできない。環境変数で制御され<strong>本番では既定でOFF</strong>（D-21）。<strong>不要なら落としてよい</strong></td><td>B-06, B-26</td></tr>
+        <tr><td class="id">M4</td><td class="id">B-08</td><td>PBIのCRUD API</td><td>作成・取得・更新・論理削除ができ、不正な状態遷移が弾かれる。<strong><code>PATCH</code>/<code>DELETE</code> は <code>If-Match</code> 必須</strong>（欠落は428・不一致は412 — D-20）</td><td>B-06, B-07</td></tr>
+        <tr><td class="id">M4</td><td class="id">B-09</td><td>並び替え（rank）</td><td><strong>Cosmos DBの <code>ORDER BY</code> が辞書順と一致することを実データで確認済み</strong>（<strong>実サービスで確認すること。エミュレータでの確認は不可</strong> — D-19）。1件を移動したとき更新されるドキュメントが1件だけである。同一キーが生じても <code>ORDER BY rank, id</code> で全端末の並びが一致する</td><td>B-07</td></tr>
+        <tr><td class="id">M4</td><td class="id">B-10</td><td>プロダクトバックログ画面</td><td>PBIが優先順位順に並び、ドラッグで並び替えでき、ステータスを変更できる。<strong><code>GET /backlog</code>（画面単位）で1往復</strong>（D-20）</td><td>B-05, B-08, B-09</td></tr>
+        <tr><td class="id">M4</td><td class="id">B-11</td><td>PBI詳細</td><td>概要、完了条件のチェックリスト、<code>estimate</code>（<strong>任意入力・未設定でも警告を出さない</strong>）を編集できる</td><td>B-10</td></tr>
+        <tr><td class="id">M4</td><td class="id">B-12</td><td>PBIの分割</td><td>分割で生成されたPBIが <code>parentPbiId</code> で元を参照し、一覧から辿れる</td><td>B-10</td></tr>
+        <tr><td class="id">M4</td><td class="id">B-13</td><td>タスクのCRUD</td><td><a href="#s4">I-1〜I-5</a>のバリデーションが<strong>単一の関数に集約</strong>されている。<code>taskType='team'</code> でも作成できる</td><td>B-07, B-08</td></tr>
+        <tr><td class="id">M5</td><td class="id">B-15</td><td>スプリントのCRUD</td><td>期間とゴールを設定でき、planned / active / closed が遷移する</td><td>B-07</td></tr>
+        <tr><td class="id">M5</td><td class="id">B-16</td><td>プランニングモード（右ペイン）</td><td>PBIのチェックで配下タスクが投入され、<strong>タスク0件なら「タスク分解」が1件生成される</strong>。外すと未完了タスクのみ <code>sprintId=null</code> に戻る。<strong>この規則は専用エンドポイントとしてサーバー側に閉じている</strong>（D-20）</td><td>B-10, B-13, B-15</td></tr>
+        <tr><td class="id">M5</td><td class="id">B-17</td><td>スプリント画面のボード</td><td>todo / doing / done をドラッグで移動でき、ブロック中を立てられる。<strong>2人が同時に触っても片方の更新が消えない</strong></td><td>B-13, B-15</td></tr>
+        <tr><td class="id">M5</td><td class="id">B-18</td><td>進捗表示</td><td><a href="#s5">05章</a>の2本バーが表示され、マーカーが<strong>営業日</strong>で計算されている。警告色を使っていない。<strong>祝日・タイムゾーンの扱いを決めてある</strong>。<strong>「今日」が注入可能で、日付を固定してテストできる</strong>（D-19）</td><td>B-17</td></tr>
+        <tr><td class="id">M5</td><td class="id">B-19</td><td>スプリント終了処理</td><td>持ち越し対象の一覧をプレビューしてから確定でき、<strong>完了タスクは移動しない</strong></td><td>B-15, B-17</td></tr>
+        <tr><td class="id">M5</td><td class="id">B-28</td><td>楽観排他（412）のUX</td><td>412発生時の振る舞い（自動再取得マージ／再操作を促す 等）が決まり、ボード操作全体で一貫して適用される。<strong>更新が黙って消える経路が存在しない</strong></td><td>B-17</td></tr>
+        <tr><td class="id">M6</td><td class="id">B-20</td><td>デイリーパネル</td><td>アジェンダと議事録を編集でき、1日1ドキュメントで保存される</td><td>B-17</td></tr>
+        <tr><td class="id">M6</td><td class="id">B-21</td><td>NextActionの表示</td><td>前スプリントのアクションが今スプリントのパネルに出て、完了にできる</td><td>B-20</td></tr>
+        <tr><td class="id">M6</td><td class="id">B-22</td><td>未割当のチームタスク</td><td>スプリントから外したチームタスクがバックログ画面に現れる（<strong>どこにも表示されない状態が存在しない</strong>）</td><td>B-10, B-16</td></tr>
+        <tr><td class="id">M7</td><td class="id">B-23</td><td>ベロシティ表示</td><td><code>completedSprintId</code> ごとの <code>estimate</code> 合計が出る。未設定は除外され、<strong>3スプリントの移動平均</strong>で表示される</td><td>B-19</td></tr>
+        <tr><td class="id">M7</td><td class="id">B-24</td><td>本番運用の確認</td><td>F1のスリープからの復帰時間とRU消費を実測し、無料枠に収まることを確認。予算アラートが発火することを確認済み</td><td>B-04, 全機能</td></tr>
+        <tr><td class="id">M8</td><td class="id">B-31</td><td><span class="chip open">将来</span> プロジェクト作成</td><td>ユーザーがプロジェクトを作成でき、<strong>作成者が <code>admin</code> として登録される</strong>。<code>_system</code> が予約語として弾かれる（D-21）</td><td>B-27</td></tr>
+        <tr><td class="id">M8</td><td class="id">B-32</td><td><span class="chip open">将来</span> 招待・参加申請・権限付与</td><td>作成者が招待でき、ユーザーが参加申請でき（<code>joinRequest</code>）、作成者が承認・拒否できる。共同管理者は<strong><code>role</code> を <code>admin</code> にするだけで表現される</strong>（新しいroleを作らない — D-21）</td><td>B-31</td></tr>
       </tbody>
     </table>
   </div>
