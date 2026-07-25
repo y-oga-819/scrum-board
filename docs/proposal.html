@@ -1157,6 +1157,12 @@ https://&lt;アプリ名&gt;.azurewebsites.net/.auth/login/aad/callback
           <td>① 全テストを実Cosmosに対して書く ② 全テストをフェイクで済ませる ③ 照合順序もエミュレータで検証する ④ カバレッジ率に下限を設ける</td>
           <td>①毎PRが分単位になり、最も価値の高い層が最も回されなくなる ②412・トランザクショナルバッチ・照合順序という<strong>壊れると発見が遅れる領域</strong>が丸ごと無検証になる ③実サービスと挙動が異なった場合、<strong>テストが通ることが誤った安心になる</strong>ため何も試験しないより悪い ④率を上げるためだけのテストを誘発し、数字は上がるが壊れ方を検出できなくなる（P-1）</td>
         </tr>
+        <tr>
+          <td class="id">D-20</td>
+          <td><strong>読み取りは画面単位、書き込みはリソース単位</strong>の非対称API。エラーは <strong>RFC 9457</strong>＋不変条件IDの機械可読化。<code>If-Match</code> は<strong>必須</strong>（欠落は428・不一致は412）<br><span class="chip in">詳細</span> <code>docs/decisions/D-20-api-conventions.md</code></td>
+          <td>① 読み取りも純粋なリソースREST ② 書き込みも画面単位 ③ 自前のエラー形式 ④ <code>If-Match</code> を任意にする ⑤ TypeScript型の手書き</td>
+          <td>①バックログ画面がN+1になり「<strong>ボードは1クエリで完結する</strong>」という設計意図がAPI層で失われる ②APIがUIの変更に引きずられ、ドメインの語彙が画面の語彙に侵食される ③拡張のたびに設計判断が要る ④<strong>省略できる経路が1つでも残るとそこで更新が黙って消え、しかも同時操作時にしか再現しない</strong> ⑤PythonとTypeScriptで2つの真実が生まれ、ずれても気づけない</td>
+        </tr>
       </tbody>
     </table>
   </div>
@@ -1288,7 +1294,7 @@ https://&lt;アプリ名&gt;.azurewebsites.net/.auth/login/aad/callback
       <thead><tr><th>M</th><th>#</th><th>PBI</th><th>完了条件</th><th>依存</th></tr></thead>
       <tbody>
         <tr><td class="id">M0</td><td class="id">B-00</td><td>テスト戦略とCI基盤</td><td><strong>D-19の4層</strong>（不変条件／API／Cosmos契約／E2E）が pytest・Vitest・Playwright で構築され、CIで自動実行され<strong>失敗でマージがブロックされる</strong>。不変条件 <a href="#s4">I-1〜I-7</a> のテーブル駆動テスト雛形がある。層1・2が<strong>Cosmosなしで走る</strong></td><td>B-03</td></tr>
-        <tr><td class="id">M0</td><td class="id">B-25</td><td>API共通規約の策定</td><td>エラー応答形式（401／403／404／409＝楽観排他／422）を統一。<strong>信頼境界はサーバー</strong>（フロントのバリデーションはUX補助）と明記。型／スキーマ共有方針（OpenAPIからの型生成等）を決定</td><td>B-06</td></tr>
+        <tr><td class="id">M0</td><td class="id">B-25</td><td>API共通規約の策定</td><td><strong>D-20</strong>に従い、RFC 9457 のエラー形式（401／403／404／409／<strong>412＝楽観排他</strong>／<strong>428＝<code>If-Match</code>欠落</strong>／422）が共通処理として動く。<code>violations</code> に<strong>不変条件IDが機械可読で載る</strong>。OpenAPIからのTS型生成がCIで差分検出される</td><td>B-06</td></tr>
         <tr><td class="id">M0</td><td class="id">B-29</td><td>リポジトリ規約の整備</td><td>LICENSE・README（開発セットアップ手順）・コミット規約・ブランチ戦略・開発ガイドが揃っている</td><td>—</td></tr>
         <tr><td class="id">M1</td><td class="id">B-01</td><td>Entra IDにアプリを登録する</td><td><a href="#s8">08章</a>のチェックリスト全項目が完了し、テナントIDとクライアントIDが控えてある。リダイレクトURI3種が登録済み。<strong>手順が再実行可能な形で残っている</strong></td><td>—</td></tr>
         <tr><td class="id">M1</td><td class="id">B-02</td><td>Azureリソースを用意する</td><td>App Service F1とCosmos DB無料レベルが作成され、<strong>予算アラートが設定されている</strong></td><td>—</td></tr>
@@ -1298,7 +1304,7 @@ https://&lt;アプリ名&gt;.azurewebsites.net/.auth/login/aad/callback
         <tr><td class="id">M1</td><td class="id">B-06</td><td>APIのトークン検証</td><td><a href="#s8">V-1〜V-4</a>をすべて通過したリクエストのみ200を返す。改ざんトークンで401</td><td>B-01</td></tr>
         <tr><td class="id">M1</td><td class="id">B-07</td><td>データアクセス基盤</td><td>単一コンテナが作成され、インデックス除外パスが設定済み。共通フィールド付与・論理削除・<code>_etag</code>楽観排他が共通処理として動く。<strong>全クエリで <code>NOT isDeleted</code> を漏れなく除外する共通処理を含む</strong>。<strong>Repositoryがポートとして抽象化され、テスト用フェイクに差し替えられる</strong>（D-19）</td><td>B-02</td></tr>
         <tr><td class="id">M1</td><td class="id">B-26</td><td>product初期化とデータseeding</td><td><code>product</code> ドキュメントの生成経路を決定（初回サインイン時に自動生成 or 手動投入）。<strong>seeding がスクリプト化され冪等である</strong>（E2Eがテストごとに既知の初期状態を作り直すため — D-19）。<code>productId</code> の払い出しルールが文書化されている</td><td>B-07</td></tr>
-        <tr><td class="id">M2</td><td class="id">B-08</td><td>PBIのCRUD API</td><td>作成・取得・更新・論理削除ができ、不正な状態遷移が弾かれる</td><td>B-06, B-07</td></tr>
+        <tr><td class="id">M2</td><td class="id">B-08</td><td>PBIのCRUD API</td><td>作成・取得・更新・論理削除ができ、不正な状態遷移が弾かれる。<strong><code>PATCH</code>/<code>DELETE</code> は <code>If-Match</code> 必須</strong>（欠落は428・不一致は412 — D-20）</td><td>B-06, B-07</td></tr>
         <tr><td class="id">M2</td><td class="id">B-09</td><td>並び替え（rank）</td><td><strong>Cosmos DBの <code>ORDER BY</code> が辞書順と一致することを実データで確認済み</strong>（<strong>実サービスで確認すること。エミュレータでの確認は不可</strong> — D-19）。1件を移動したとき更新されるドキュメントが1件だけである。同一キーが生じても <code>ORDER BY rank, id</code> で全端末の並びが一致する</td><td>B-07</td></tr>
         <tr><td class="id">M2</td><td class="id">B-10</td><td>プロダクトバックログ画面</td><td>PBIが優先順位順に並び、ドラッグで並び替えでき、ステータスを変更できる</td><td>B-05, B-08, B-09</td></tr>
         <tr><td class="id">M2</td><td class="id">B-11</td><td>PBI詳細</td><td>概要、完了条件のチェックリスト、<code>estimate</code>（<strong>任意入力・未設定でも警告を出さない</strong>）を編集できる</td><td>B-10</td></tr>
@@ -1307,7 +1313,7 @@ https://&lt;アプリ名&gt;.azurewebsites.net/.auth/login/aad/callback
         <tr><td class="id">M2</td><td class="id">B-14</td><td>メンバー管理と認可</td><td>プロダクトのメンバーでないユーザーは403。<code>oid</code> をキーにしている</td><td>B-06, B-07</td></tr>
         <tr><td class="id">M2</td><td class="id">B-27</td><td>認可ブートストラップ</td><td>最初のユーザーを <code>member</code>（admin）として登録する経路が決まり、<strong>メンバー0人の状態からサインイン→利用開始できる</strong>。Entra側の割り当てとアプリ内 <code>member</code> の役割分担が文書化されている</td><td>B-14, B-26</td></tr>
         <tr><td class="id">M3</td><td class="id">B-15</td><td>スプリントのCRUD</td><td>期間とゴールを設定でき、planned / active / closed が遷移する</td><td>B-07</td></tr>
-        <tr><td class="id">M3</td><td class="id">B-16</td><td>プランニングモード（右ペイン）</td><td>PBIのチェックで配下タスクが投入され、<strong>タスク0件なら「タスク分解」が1件生成される</strong>。外すと未完了タスクのみ <code>sprintId=null</code> に戻る</td><td>B-10, B-13, B-15</td></tr>
+        <tr><td class="id">M3</td><td class="id">B-16</td><td>プランニングモード（右ペイン）</td><td>PBIのチェックで配下タスクが投入され、<strong>タスク0件なら「タスク分解」が1件生成される</strong>。外すと未完了タスクのみ <code>sprintId=null</code> に戻る。<strong>この規則は専用エンドポイントとしてサーバー側に閉じている</strong>（D-20）</td><td>B-10, B-13, B-15</td></tr>
         <tr><td class="id">M3</td><td class="id">B-17</td><td>スプリント画面のボード</td><td>todo / doing / done をドラッグで移動でき、ブロック中を立てられる。<strong>2人が同時に触っても片方の更新が消えない</strong></td><td>B-13, B-15</td></tr>
         <tr><td class="id">M3</td><td class="id">B-18</td><td>進捗表示</td><td><a href="#s5">05章</a>の2本バーが表示され、マーカーが<strong>営業日</strong>で計算されている。警告色を使っていない。<strong>祝日・タイムゾーンの扱いを決めてある</strong>。<strong>「今日」が注入可能で、日付を固定してテストできる</strong>（D-19）</td><td>B-17</td></tr>
         <tr><td class="id">M3</td><td class="id">B-19</td><td>スプリント終了処理</td><td>持ち越し対象の一覧をプレビューしてから確定でき、<strong>完了タスクは移動しない</strong></td><td>B-15, B-17</td></tr>
