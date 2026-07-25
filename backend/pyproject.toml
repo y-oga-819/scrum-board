@@ -15,12 +15,19 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
+    "pytest-cov>=6.0",
     "ruff>=0.9",
     "mypy>=1.13",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# デフォルトで app のカバレッジを計測し、未到達行を表示する。
+addopts = "--cov=app --cov-report=term-missing"
+
+[tool.coverage.run]
+source = ["app"]
+branch = true
 
 [tool.ruff]
 target-version = "py311"

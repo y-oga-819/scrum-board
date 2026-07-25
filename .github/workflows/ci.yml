@@ -38,8 +38,16 @@ jobs:
       - name: Type check (mypy)
         run: uv run mypy
 
-      - name: Test (pytest)
-        run: uv run pytest
+      # addopts で term レポートは常に出る。CI では HTML と XML も追加で出力する。
+      - name: Test (pytest + coverage)
+        run: uv run pytest --cov-report=html --cov-report=xml
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: backend/htmlcov
 
   frontend:
     name: Frontend (eslint / tsc / karma)
@@ -69,5 +77,12 @@ jobs:
       # ChromeHeadlessNoSandbox は Angular ビルダー組み込みのランチャー。
       # root で動く CI では --no-sandbox が必要になる。
       # Chrome は ubuntu-latest ランナーにプリインストールされている。
-      - name: Test (Karma/Jasmine)
-        run: npm test -- --watch=false --browsers=ChromeHeadlessNoSandbox
+      - name: Test (Karma/Jasmine + coverage)
+        run: npm test -- --watch=false --browsers=ChromeHeadlessNoSandbox --code-coverage
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: frontend/coverage

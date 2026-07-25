@@ -14,7 +14,7 @@ PORT         ?= 8000
 .PHONY: help install install-frontend install-backend build build-frontend \
         dev dev-frontend dev-backend run test test-frontend test-backend \
         lint lint-frontend lint-backend typecheck typecheck-frontend \
-        typecheck-backend clean
+        typecheck-backend coverage coverage-frontend coverage-backend clean
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | \
@@ -82,8 +82,19 @@ typecheck-backend: ## Type-check backend (mypy)
 typecheck-frontend: ## Type-check frontend (tsc --noEmit)
 	cd $(FRONTEND_DIR) && npm run typecheck
 
+## ---- coverage ---------------------------------------------------------------
+
+coverage: coverage-backend coverage-frontend ## Run all tests with coverage reports
+
+coverage-backend: ## Backend coverage (term + HTML in backend/htmlcov)
+	cd $(BACKEND_DIR) && uv run pytest --cov-report=html
+
+coverage-frontend: ## Frontend coverage (term + HTML in frontend/coverage)
+	cd $(FRONTEND_DIR) && npm run coverage
+
 ## ---- clean ------------------------------------------------------------------
 
 clean: ## Remove build artifacts and caches
-	rm -rf $(FRONTEND_DIR)/dist $(FRONTEND_DIR)/.angular
+	rm -rf $(FRONTEND_DIR)/dist $(FRONTEND_DIR)/.angular $(FRONTEND_DIR)/coverage
+	rm -rf $(BACKEND_DIR)/htmlcov $(BACKEND_DIR)/coverage.xml $(BACKEND_DIR)/.coverage
 	find $(BACKEND_DIR) -type d -name __pycache__ -prune -exec rm -rf {} +
