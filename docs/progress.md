@@ -132,15 +132,20 @@ PoC自体を無検証で進めないため、**V-1〜V-4 のテストは B-04 �
 - [x] サインイン状態を `AuthService` の1か所に集約（画面は MSAL を直接触らない・テスト差し替え可能）
 - [x] タブを開き直したときのサインイン状態の**無音復元**（`ssoSilent`）。トークンは `sessionStorage` 限定のまま、復元は Entra 側のブラウザセッションに委ねる（有効期間は組織の Entra ポリシー次第）
 
-### ⬜ B-04 APIのトークン検証　`依存: B-02, B-01`
-- [ ] V-1 署名検証（JWKSの公開鍵でRS256・鍵はキャッシュ）
-- [ ] V-2 `aud` がクライアントIDと一致
-- [ ] V-3 `iss` が `https://login.microsoftonline.com/<tenantId>/v2.0`
-- [ ] V-4 `scp` に `access_as_user` が含まれる
-- [ ] 改ざんトークンで 401 を返す
-- [ ] **V-1〜V-4 のテストが書かれている**（テスト基盤の全体構築=B-11 を待たない）
-- [ ] **ユーザー解決がポートとして切り出されている**（テスト用実装に差し替えられる — D-21）
-- [ ] サインイン後、**APIが検証した `oid` が画面に表示される**（端から端まで通ったことの可視化）
+### 🟨 B-04 APIのトークン検証　`依存: B-02, B-01`
+> **実装は完了。** トークン検証（V-1〜V-4）・ユーザー解決ポート・`GET /api/me`・
+> フロントの oid 表示まで配線し、テスト鍵ペア＋JWKSスタブで検証済み
+> （`make test-backend` / `make test-frontend`）。**実 Entra トークンでの端から端まで
+> （実際のサインインで oid が出ること）だけが B-02 の実値待ち**（B-03 と同じ理由）。
+> 所属プロダクト一覧を含む完全な `/api/me`（D-21）はデータ層が要るため B-10 で足す。
+- [x] V-1 署名検証（JWKSの公開鍵でRS256・鍵はキャッシュ）　`app/auth/jwks.py`・`token.py`
+- [x] V-2 `aud` がクライアントIDと一致　`app/auth/token.py`（`jwt.decode(audience=…)`）
+- [x] V-3 `iss` が `https://login.microsoftonline.com/<tenantId>/v2.0`　`app/auth/settings.py`
+- [x] V-4 `scp` に `access_as_user` が含まれる　`app/auth/token.py`
+- [x] 改ざんトークンで 401 を返す（`InvalidTokenError → 401` + `WWW-Authenticate: Bearer`）
+- [x] **V-1〜V-4 のテストが書かれている**（`tests/auth/`。実テナントに繋がずテスト鍵で検証。B-11 を待たない）
+- [x] **ユーザー解決がポートとして切り出されている**（`CurrentUserResolver`。テストは `dependency_overrides` で差し替え — D-21）
+- [x] サインイン後、**APIが検証した `oid` が画面に表示される**（`GET /api/me` → home の「API が検証した oid」）　※実サインインでの疎通は B-02 の実値待ち
 
 ### ⬜ B-05 Azureリソースを用意する　`依存: —`
 - [ ] App Service F1 を作成

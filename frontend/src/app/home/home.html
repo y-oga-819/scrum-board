@@ -13,6 +13,8 @@
     <dl class="status">
       <dt>API</dt>
       <dd>{{ apiStatus() }}</dd>
+      <dt>API が検証した oid</dt>
+      <dd class="oid">{{ verifiedOid() }}</dd>
     </dl>
 
     <button type="button" class="signout" (click)="signOut()">サインアウト</button>
