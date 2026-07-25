@@ -130,6 +130,7 @@ PoC自体を無検証で進めないため、**V-1〜V-4 のテストは B-04 �
 - [x] ローカルでも本番と同じ経路で動く（**Easy Auth に依存しない** — D-10。`redirectUri` を `window.location.origin` から導出）
 - [x] `/api/*` への発信に Bearer アクセストークンを付与（`MsalInterceptor`。→ B-04 と対になる）
 - [x] サインイン状態を `AuthService` の1か所に集約（画面は MSAL を直接触らない・テスト差し替え可能）
+- [x] タブを開き直したときのサインイン状態の**無音復元**（`ssoSilent`）。トークンは `sessionStorage` 限定のまま、復元は Entra 側のブラウザセッションに委ねる（有効期間は組織の Entra ポリシー次第）
 
 ### ⬜ B-04 APIのトークン検証　`依存: B-02, B-01`
 - [ ] V-1 署名検証（JWKSの公開鍵でRS256・鍵はキャッシュ）
