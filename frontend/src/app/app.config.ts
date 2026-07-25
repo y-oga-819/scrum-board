@@ -24,7 +24,6 @@ import {
 
 import { routes } from './app.routes';
 import {
-  API_SCOPE,
   msalGuardConfigFactory,
   msalInstanceFactory,
   msalInterceptorConfigFactory,
@@ -40,16 +39,8 @@ export const appConfig: ApplicationConfig = {
 
     // --- MSAL（認証）配線 ---
     { provide: MSAL_INSTANCE, useFactory: msalInstanceFactory },
-    {
-      provide: MSAL_GUARD_CONFIG,
-      useFactory: msalGuardConfigFactory,
-      deps: [API_SCOPE],
-    },
-    {
-      provide: MSAL_INTERCEPTOR_CONFIG,
-      useFactory: msalInterceptorConfigFactory,
-      deps: [API_SCOPE],
-    },
+    { provide: MSAL_GUARD_CONFIG, useFactory: msalGuardConfigFactory },
+    { provide: MSAL_INTERCEPTOR_CONFIG, useFactory: msalInterceptorConfigFactory },
     MsalService,
     MsalGuard,
     MsalBroadcastService,
