@@ -1,0 +1,59 @@
+name: CI
+
+# フロントエンド（Angular/Karma）とバックエンド（FastAPI/pytest）のテストを
+# push と pull request で実行する CI の基盤。
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# 同一ブランチで新しい push があれば古い実行をキャンセルする。
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (pytest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: uv sync --extra dev
+
+      - name: Run tests
+        run: uv run pytest
+
+  frontend:
+    name: Frontend (Karma/Jasmine)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # ChromeHeadlessNoSandbox は Angular ビルダー組み込みのランチャー。
+      # root で動く CI では --no-sandbox が必要になる。
+      # Chrome は ubuntu-latest ランナーにプリインストールされている。
+      - name: Run tests
+        run: npm test -- --watch=false --browsers=ChromeHeadlessNoSandbox
