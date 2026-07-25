@@ -2,13 +2,19 @@
   <section class="card">
     <h1>Scrum Board</h1>
     <p class="lead">スクラムバックログ管理アプリ</p>
+
+    <p class="signed-in"><span class="who">{{ displayName() }}</span> でサインイン中</p>
+
     <p class="note">
-      これは骨格ページです（PBI <code>B-01</code>）。<br />
-      このあと <code>B-03</code> で、このページに Entra ID のサインインを載せます。
+      このページは Entra ID のサインインで保護されています（PBI <code>B-03</code>）。<br />
+      未認証ユーザーはルートガードで弾かれます。
     </p>
+
     <dl class="status">
       <dt>API</dt>
       <dd>{{ apiStatus() }}</dd>
     </dl>
+
+    <button type="button" class="signout" (click)="signOut()">サインアウト</button>
   </section>
 </main>
