@@ -1,6 +1,6 @@
 # D-20 API共通規約
 
-- **対応PBI**: [B-25](../progress.md)
+- **対応PBI**: [B-12](../progress.md)
 - **関連**: 提案書 [Q-10](../proposal.html)、07章 主要フロー、不変条件 I-1〜I-7
 - **決定日**: 2026-07-25
 
@@ -52,7 +52,7 @@ UIとデータの間に翻訳層を置くことを認めているなら、APIも
 POST   /api/products/{pid}/pbis
 PATCH  /api/products/{pid}/pbis/{id}
 DELETE /api/products/{pid}/pbis/{id}              # 論理削除
-POST   /api/products/{pid}/pbis/{id}/split        # 分割（B-12）
+POST   /api/products/{pid}/pbis/{id}/split        # 分割（B-19）
 POST   /api/products/{pid}/pbis/{id}/rank         # 並び替え（前後の要素IDを渡す）
 
 POST   /api/products/{pid}/tasks
@@ -62,13 +62,13 @@ POST   /api/products/{pid}/tasks/{id}/rank
 
 POST   /api/products/{pid}/sprints
 PATCH  /api/products/{pid}/sprints/{id}
-GET    /api/products/{pid}/sprints/{id}/close/preview   # 持ち越し一覧（B-19）
+GET    /api/products/{pid}/sprints/{id}/close/preview   # 持ち越し一覧（B-25）
 POST   /api/products/{pid}/sprints/{id}/close           # 終了処理
 
 POST   /api/products/{pid}/sprints/{sid}/pbis/{pbiId}   # プランニング：取り込み
 DELETE /api/products/{pid}/sprints/{sid}/pbis/{pbiId}   # プランニング：外す
 
-PUT    /api/products/{pid}/daily/{date}                 # 1日1ドキュメント（B-20）
+PUT    /api/products/{pid}/daily/{date}                 # 1日1ドキュメント（B-27）
 PATCH  /api/products/{pid}/retro-actions/{id}
 GET    /api/products/{pid}/members
 POST   /api/products/{pid}/members
@@ -87,7 +87,7 @@ POST   /api/products/{pid}/members
 
 ### `productId` をパスに明示する
 
-パーティションキーであり、認可の単位（B-14）でもある。単一チーム前提でも
+パーティションキーであり、認可の単位（B-09）でもある。単一チーム前提でも
 サーバー側の暗黙解決にはしない。**全呼び出し箇所でパーティションキーが見える**ことに
 価値がある。
 
@@ -118,7 +118,7 @@ D-19 で決めたテーブル駆動テストが「弾かれたか」だけでな
 | コード | 用途 |
 |:---:|:---|
 | **401** | 未認証・トークン不正（V-1〜V-4 の失敗） |
-| **403** | プロダクトのメンバーでない（B-14） |
+| **403** | プロダクトのメンバーでない（B-09） |
 | **404** | 存在しない、**または論理削除済み**（存在の有無を漏らさない） |
 | **409** | ドメイン競合（スプリント番号の重複など） |
 | **412** | **楽観排他の失敗**（`If-Match` 不一致） |
@@ -146,7 +146,7 @@ D-19 で決めたテーブル駆動テストが「弾かれたか」だけでな
 各要素の `_etag` を**アイテムのフィールドとして**返し、クライアントは更新対象の要素の
 `_etag` を `If-Match` に載せる。
 
-> 412 の応答本文に「サーバー側の最新値」を含めるかは **B-28（楽観排他のUX）で決める**。
+> 412 の応答本文に「サーバー側の最新値」を含めるかは **B-26（楽観排他のUX）で決める**。
 > 再取得マージ方式を採るなら含める価値があり、再操作を促す方式なら不要。ここでは決めない。
 
 ---
@@ -191,12 +191,12 @@ FastAPI が既に OpenAPI を出せる以上、得るものが少ない。
 
 | PBI | 追加される要件 |
 |:---:|:---|
-| B-08, B-13, B-15 | `PATCH`/`DELETE` は `If-Match` 必須。欠落は428、不一致は412 |
-| B-09 | 並び替えは専用エンドポイント。前後の要素IDを受け取りサーバーでランク生成 |
-| B-10, B-17 | 画面単位GET（`/backlog`・`/board`）を使う。N+1にしない |
-| B-16 | プランニングは専用エンドポイント。D-15（タスク分解の自動生成）をサーバー側に閉じる |
-| B-19 | `close/preview` と `close` を分ける |
-| B-28 | 412応答に最新値を含めるかを決める |
+| B-15, B-20, B-21 | `PATCH`/`DELETE` は `If-Match` 必須。欠落は428、不一致は412 |
+| B-16 | 並び替えは専用エンドポイント。前後の要素IDを受け取りサーバーでランク生成 |
+| B-17, B-23 | 画面単位GET（`/backlog`・`/board`）を使う。N+1にしない |
+| B-22 | プランニングは専用エンドポイント。D-15（タスク分解の自動生成）をサーバー側に閉じる |
+| B-25 | `close/preview` と `close` を分ける |
+| B-26 | 412応答に最新値を含めるかを決める |
 
 ---
 
