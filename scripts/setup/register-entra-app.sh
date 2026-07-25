@@ -15,19 +15,23 @@
 #     テナントが一般ユーザーのアプリ登録を許可している）。
 #   - uuidgen が使えること（macOS / 主要な Linux に同梱）。
 #
-# 使い方:
+# 使い方（ローカルで az login した状態で流す。Azureリソースも CD も不要）:
+#   # 認証PoC 段階（B-05 より前。App Service がまだ無い）— localhost だけ登録:
+#   ./scripts/setup/register-entra-app.sh
+#
+#   # B-05 で App Service 名が決まったあと — 本番URIを足して再実行（冪等）:
 #   APP_HOSTNAME=myscrum.azurewebsites.net ./scripts/setup/register-entra-app.sh
 #
-#   環境変数（すべて任意。未指定なら既定値）:
+#   環境変数（すべて任意）:
 #     DISPLAY_NAME   アプリの表示名            （既定: scrum-board）
-#     APP_HOSTNAME   本番 App Service のホスト  （既定: <アプリ名>.azurewebsites.net ← 要指定）
+#     APP_HOSTNAME   本番 App Service のホスト  （既定: 空 = 本番URIは登録しない）
 #     LOCAL_ORIGIN   ローカル開発オリジン        （既定: http://localhost:4200）
 #     GRANT_CONSENT  1 なら管理者同意まで実行     （既定: 0。Global Admin 権限が要る）
 #
 set -euo pipefail
 
 DISPLAY_NAME="${DISPLAY_NAME:-scrum-board}"
-APP_HOSTNAME="${APP_HOSTNAME:-<アプリ名>.azurewebsites.net}"
+APP_HOSTNAME="${APP_HOSTNAME:-}"          # 空なら本番リダイレクトURIは登録しない
 LOCAL_ORIGIN="${LOCAL_ORIGIN:-http://localhost:4200}"
 GRANT_CONSENT="${GRANT_CONSENT:-0}"
 
@@ -48,14 +52,13 @@ command -v az >/dev/null      || die "az CLI が見つからない。https://aka
 command -v uuidgen >/dev/null || die "uuidgen が見つからない。"
 az account show >/dev/null 2>&1 || die "未サインイン。先に 'az login' を実行する。"
 
-if [[ "$APP_HOSTNAME" == "<アプリ名>.azurewebsites.net" ]]; then
-  warn "APP_HOSTNAME が既定のプレースホルダのまま。本番リダイレクトURIは仮の値になる。"
-  warn "本番ホストが決まったら APP_HOSTNAME=... を指定して再実行すること（冪等なので安全）。"
+if [[ -z "$APP_HOSTNAME" ]]; then
+  warn "APP_HOSTNAME 未指定。本番リダイレクトURIは登録せず、ローカル（${LOCAL_ORIGIN}）だけ登録する。"
+  warn "認証PoC（B-03/B-04）はこれで足りる。B-05 で App Service 名が決まったら"
+  warn "APP_HOSTNAME=<name>.azurewebsites.net を付けて再実行すれば本番URIが足される（冪等）。"
 fi
 
 TENANT_ID="$(az account show --query tenantId -o tsv)"
-PROD_ORIGIN="https://${APP_HOSTNAME}"
-EASY_AUTH_CALLBACK="https://${APP_HOSTNAME}/.auth/login/aad/callback"
 
 log "テナント: ${TENANT_ID}"
 log "表示名  : ${DISPLAY_NAME}"
@@ -82,12 +85,21 @@ log "clientId (appId) = ${APP_ID}"
 #     Web に置くと AADSTS9002326（cross-origin token redemption は SPA 限定）で
 #     必ず詰まる — 最頻出の事故（提案書 08章 / D-10）。
 #     Easy Auth のコールバックはサーバー側フロー用なので "web" に置く（保険。D-10）。
-log "リダイレクトURI を設定する（spa: 本番/ローカル, web: Easy Auth 保険）"
+#     APP_HOSTNAME が空のときはローカルだけ登録する（本番URIは B-05 後の再実行で足す）。
+if [[ -n "$APP_HOSTNAME" ]]; then
+  SPA_URIS="\"https://${APP_HOSTNAME}\", \"${LOCAL_ORIGIN}\""
+  WEB_URIS="\"https://${APP_HOSTNAME}/.auth/login/aad/callback\""
+  log "リダイレクトURI を設定する（spa: 本番/ローカル, web: Easy Auth 保険）"
+else
+  SPA_URIS="\"${LOCAL_ORIGIN}\""
+  WEB_URIS=""
+  log "リダイレクトURI を設定する（spa: ローカルのみ。本番は APP_HOSTNAME 指定時に追加）"
+fi
 BODY_REDIRECT="$(mktemp)"
 cat >"$BODY_REDIRECT" <<JSON
 {
-  "spa": { "redirectUris": ["${PROD_ORIGIN}", "${LOCAL_ORIGIN}"] },
-  "web": { "redirectUris": ["${EASY_AUTH_CALLBACK}"] }
+  "spa": { "redirectUris": [${SPA_URIS}] },
+  "web": { "redirectUris": [${WEB_URIS}] }
 }
 JSON
 az rest --method PATCH --uri "${GRAPH}/applications/${OBJECT_ID}" \

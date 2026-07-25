@@ -44,15 +44,33 @@ az account show               # テナントが合っているか確認
 
 ## 2. 実行
 
-リポジトリのルートで、**本番 App Service のホスト名**を渡して実行する。
+> **前提の確認**: B-02 は **Azure リソースも CD も必要としない。**
+> アプリ登録は Entra ID 上のオブジェクトで、App Service とは独立して作れる。
+> **ローカルで `az login` してこのスクリプトを流すだけ**でよい。認証PoC
+> （B-03/B-04）は `localhost:4200` だけで検証できる順序にしてある（D-21）。
+> App Service の作成（B-05）・CD による本番デプロイ（B-06）は**この後の工程**。
+
+リポジトリのルートで実行する。
+
+**① 認証PoC 段階（B-05 より前 — App Service がまだ無い）**
+本番ホスト名は不要。ローカルのリダイレクトURIだけが登録される。
+
+```bash
+az login
+./scripts/setup/register-entra-app.sh
+```
+
+**② B-05 で App Service 名（`<アプリ名>`）が決まったあと**
+同じスクリプトに `APP_HOSTNAME` を渡して**再実行**する。本番SPAと Easy Auth 保険の
+URIが追加される（冪等なので安全に上書きされる）。
 
 ```bash
 APP_HOSTNAME=<アプリ名>.azurewebsites.net ./scripts/setup/register-entra-app.sh
 ```
 
-本番ホスト名がまだ決まっていない場合（B-05 より前）は、そのまま実行してよい。
-本番リダイレクトURIだけがプレースホルダになる。**ホストが決まったら
-`APP_HOSTNAME` を指定して再実行する**（冪等なので安全に上書きされる）。
+> **`<アプリ名>` とは**: B-05 で作る **App Service の名前**。`https://<アプリ名>.azurewebsites.net`
+> が本番URLになる。Azure 全体で**グローバルに一意**な名前で、**B-05 で決めるまで存在しない**。
+> だから①の段階では渡さなくてよい。
 
 ### 渡せる環境変数
 
@@ -81,11 +99,11 @@ APP_HOSTNAME=<アプリ名>.azurewebsites.net ./scripts/setup/register-entra-app
 **プラットフォームの割り当てを間違えると `AADSTS9002326` で必ず詰まる**
 （最頻出の事故）。スクリプトは次のように**正しく振り分けている**。
 
-| URI | プラットフォーム | 用途 |
-|:---|:---|:---|
-| `https://<host>` | **SPA** | 本番。MSAL.js が実際に使う |
-| `http://localhost:4200` | **SPA** | ローカル開発。MSAL.js が実際に使う |
-| `https://<host>/.auth/login/aad/callback` | **Web** | Easy Auth に切替える場合の保険（D-10） |
+| URI | プラットフォーム | 用途 | 登録タイミング |
+|:---|:---|:---|:---|
+| `http://localhost:4200` | **SPA** | ローカル開発。MSAL.js が実際に使う | ①今すぐ |
+| `https://<host>` | **SPA** | 本番。MSAL.js が実際に使う | ②B-05 後（`APP_HOSTNAME`） |
+| `https://<host>/.auth/login/aad/callback` | **Web** | Easy Auth に切替える場合の保険（D-10） | ②B-05 後（`APP_HOSTNAME`） |
 
 `AADSTS9002326`（*cross-origin token redemption is permitted only for the
 'Single-Page Application' client-type*）は、**MSAL.js が使う URI を Web に
@@ -161,7 +179,7 @@ ENTRA_API_SCOPE=api://<clientId>/access_as_user
 - [ ] マニフェスト **`requestedAccessTokenVersion: 2`**
 - [ ] APIアクセス許可 **`openid` `profile` `email`**
 - [ ] エンタープライズアプリ **「割り当てが必要 = はい」** ＋ 利用者を割り当て済み
-- [ ] リダイレクトURI **3種**（本番SPA / `localhost:4200` / Easy Auth 保険）が登録済み
+- [ ] リダイレクトURI **3種**（本番SPA / `localhost:4200` / Easy Auth 保険）が登録済み ※本番の2つは B-05 後の再実行で追加。PoC段階は `localhost` のみで可
 - [ ] **テナントID・クライアントID** を控えた（シークレットは不要）
 - [ ] **手順が再実行可能な形（az CLI 中心）で残っている** ← 本書とスクリプトがこれを満たす
 
