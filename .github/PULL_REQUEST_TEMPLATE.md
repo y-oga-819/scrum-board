@@ -7,17 +7,12 @@
 
 ## 概要 (What)
 
-<!-- 1-3 行。このPRが何を達成するか。対応する PBI があれば ID を書く（例: B-07）。 -->
+<!-- 1-3 行。このPRが何を達成するか。 -->
 
-## 関連 Issue / PBI
+## 関連 PBI
 
-<!-- 対応 issue があれば必ずリンクする（マージ時自動 close したい場合は `Closes #N`）。
-     参照するだけ（close しない）なら `Refs #N`。
-     複数 close する場合は `Closes #1, Closes #2` のように `Closes` を都度書く。
-     PBI ベースの作業なら docs/progress.md の該当 ID（例: B-07）も併記する。
-     対応 issue / PBI が無い PR の場合はこのセクションごと削除して構わない。 -->
-
-Closes #
+<!-- 対応する PBI があれば docs/progress.md の該当 ID を書く（例: B-07）。
+     無い PR の場合はこのセクションごと削除して構わない。 -->
 
 ## 背景 (Why)
 
