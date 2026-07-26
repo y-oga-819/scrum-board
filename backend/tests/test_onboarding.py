@@ -113,7 +113,9 @@ def test_existing_user_keeps_original_claims(repo: InMemoryRepository) -> None:
         repo, AuthenticatedUser(oid=OID, display_name="Renamed", email="x@example.com")
     )
 
-    assert get_user(repo, OID)["displayName"] == "New Comer"
+    stored = get_user(repo, OID)
+    assert stored is not None
+    assert stored["displayName"] == "New Comer"
 
 
 # --- 所属一覧 ----------------------------------------------------------------------

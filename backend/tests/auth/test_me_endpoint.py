@@ -11,6 +11,10 @@ from fastapi.testclient import TestClient
 
 from app.auth import get_current_user_resolver
 from app.auth.resolver import AuthenticatedUser, EntraCurrentUserResolver
+from app.data.fake import InMemoryRepository
+from app.data.members import get_member
+from app.data.products import SANDBOX_PRODUCT_ID, create_product
+from app.data.users import get_user
 from app.main import app
 
 from .keys import TEST_OID, TEST_SETTINGS, SigningKeypair, static_jwks
@@ -21,6 +25,10 @@ def client():
     c = TestClient(app)
     yield c
     app.dependency_overrides.clear()
+    # /api/me は app.state.repository を読む。テスト間で漏らさないよう毎回消す
+    # （lifespan を回さない TestClient では属性が残り続けるため）。
+    if hasattr(app.state, "repository"):
+        del app.state.repository
 
 
 # --- 認証の有無 --------------------------------------------------------------
@@ -42,19 +50,51 @@ def test_health_stays_public(client: TestClient) -> None:
 # --- ポートの差し替え（層2の使い方） -----------------------------------------
 
 
-def test_me_returns_oid_with_stubbed_resolver(client: TestClient) -> None:
-    # ハンドラのテストはトークン検証を通さず、固定ユーザーを返す実装に差し替える
-    # （D-21「分岐ではなく差し替えで表現する」）。
+def _stub_resolver(user: AuthenticatedUser) -> None:
+    """トークン検証を通さず固定ユーザーを返す実装に差し替える（層2の使い方）。"""
+
     class StubResolver:
-        async def resolve(self, request) -> AuthenticatedUser:
-            return AuthenticatedUser(oid="fixed-oid", display_name="Fixed User")
+        async def resolve(self, request) -> AuthenticatedUser:  # noqa: ANN001
+            return user
 
     app.dependency_overrides[get_current_user_resolver] = lambda: StubResolver()
+
+
+def test_me_without_db_returns_identity_with_empty_products(client: TestClient) -> None:
+    # DB 未構成（M1 の認証のみ）でも /api/me は成立する。所属は空一覧（D-21）。
+    _stub_resolver(AuthenticatedUser(oid="fixed-oid", display_name="Fixed User"))
 
     res = client.get("/api/me")
 
     assert res.status_code == 200
-    assert res.json() == {"oid": "fixed-oid", "displayName": "Fixed User"}
+    assert res.json() == {
+        "oid": "fixed-oid",
+        "displayName": "Fixed User",
+        "isGuest": False,
+        "products": [],
+    }
+
+
+def test_me_bootstraps_user_and_sandbox_membership(client: TestClient) -> None:
+    # DB があれば初回サインインで user とサンドボックス member が作られ、所属一覧に出る
+    # （B-10 の中核。403 で詰まる経路を無くす）。
+    repo = InMemoryRepository()
+    create_product(repo, product_id=SANDBOX_PRODUCT_ID, name="サンドボックス", actor="sys")
+    app.state.repository = repo
+    _stub_resolver(AuthenticatedUser(oid="newcomer", display_name="New Comer"))
+
+    res = client.get("/api/me")
+
+    assert res.status_code == 200
+    body = res.json()
+    assert body["oid"] == "newcomer"
+    assert body["isGuest"] is False
+    assert body["products"] == [
+        {"productId": SANDBOX_PRODUCT_ID, "name": "サンドボックス", "role": "member"}
+    ]
+    # 副作用: user と member が実際に作られている（冪等なので再取得で確認できる）。
+    assert get_user(repo, "newcomer") is not None
+    assert get_member(repo, product_id=SANDBOX_PRODUCT_ID, oid="newcomer") is not None
 
 
 # --- Entra 実装＋テスト鍵での端から端まで ------------------------------------

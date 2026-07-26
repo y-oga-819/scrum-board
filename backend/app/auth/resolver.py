@@ -29,13 +29,19 @@ _BEARER_PREFIX = "bearer "
 
 @dataclass(frozen=True)
 class AuthenticatedUser:
-    """検証済みトークンから得た、現在のユーザーの identity。"""
+    """検証済みトークンから得た、現在のユーザーの identity。
+
+    ``is_guest`` は ``GET /api/me`` が「ゲストと実ユーザーで同じ形」を返すための旗
+    （D-21）。Entra 実装では常に ``False``。ゲスト経路（B-14・任意）を採るなら、
+    その resolver 実装だけがここを ``True`` にする（``if guest:`` をハンドラに撒かない）。
+    """
 
     oid: str
     display_name: str | None = None
     email: str | None = None
     tenant_id: str | None = None
     scopes: tuple[str, ...] = ()
+    is_guest: bool = False
 
 
 class CurrentUserResolver(Protocol):
