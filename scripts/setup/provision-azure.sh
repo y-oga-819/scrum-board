@@ -60,6 +60,25 @@ echo "▶ サブスクリプション: ${SUBSCRIPTION_ID}"
 # ---- ヘルパ: 冪等な「無ければ作る」 ---------------------------------------------
 log() { printf '\n\033[36m▶ %s\033[0m\n' "$*"; }
 
+# ---- リソースプロバイダーの登録 ------------------------------------------------
+# 新規サブスクリプションでは各リソースプロバイダーが未登録のことがある。未登録のまま
+# create すると MissingSubscriptionRegistration で落ちるため、使うものを先に登録する。
+#   Microsoft.Web         … App Service
+#   Microsoft.DocumentDB  … Cosmos DB
+#   Microsoft.Consumption … 予算アラート
+# 登録済みなら即返る（冪等）。--wait で「Registered」まで待ってから次に進む。
+log "リソースプロバイダーの登録"
+for ns in Microsoft.Web Microsoft.DocumentDB Microsoft.Consumption; do
+  state="$(az provider show --namespace "${ns}" --query registrationState -o tsv 2>/dev/null || echo NotRegistered)"
+  if [[ "${state}" == "Registered" ]]; then
+    echo "  ✅ ${ns} 登録済み"
+  else
+    echo "  … ${ns} を登録中（数分かかることがある）"
+    az provider register --namespace "${ns}" --wait
+    echo "  ✅ ${ns} 登録完了"
+  fi
+done
+
 # ---- リソースグループ ----------------------------------------------------------
 # RG の location は「メタデータの置き場所」でしかなく、中のリソースは別リージョンでも
 # 構わない。既存 RG に別 location で create を投げると InvalidResourceGroupLocation で
