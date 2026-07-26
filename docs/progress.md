@@ -201,8 +201,11 @@ PoC自体を無検証で進めないため、**V-1〜V-4 のテストは B-04 �
 > `if_match` を**必須引数**にして無条件更新を型で塞ぐ（D-20）。
 > コンテナ作成は `provisioning.ensure_container`（冪等）で PK `/productId` ＋
 > 除外パスを設定する。契約テスト（フェイク）・ULID・stamping・除外パスを
-> `tests/data/` で検証（`make test-backend` 緑・54件）。実 Cosmos に依存する
+> `tests/data/` で検証（`make test-backend` 緑・56件）。実 Cosmos に依存する
 > 412／バッチ原子性／RU 実測は層3（B-11）と実サービス（B-31）に回す。
+> `CosmosClient` は **アプリのライフタイムで1個だけ**生成して使い回す（コネクション
+> プールはクライアントが内部で共有・シングルトン）。`main.py` の lifespan がクライアントを
+> 所有し shutdown で `close()` する器を先に用意（未構成なら DB 無しで起動）。実配線は B-09 以降。
 - [x] 単一コンテナを作成（PK `/productId`）　`app/data/provisioning.py`（`create_container_if_not_exists`）
 - [x] インデックス除外パス（`description` `memo` `minutes`）を設定　`container_indexing_policy()`
 - [x] 共通フィールド付与（id=ULID / type / createdAt 等）が共通処理として動く　`documents.stamp_new`・`ids.new_id`

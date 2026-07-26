@@ -12,13 +12,52 @@ entirely (design proposal, ch. 09).
 
 from __future__ import annotations
 
+import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 
 from .api import router as api_router
 from .config import spa_dist_dir
+from .data.settings import build_repository, cosmos_settings_from_env, create_client
 
-app = FastAPI(title="Scrum Board")
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(application: FastAPI) -> AsyncIterator[None]:
+    """アプリのライフタイムで Cosmos クライアントを **1個だけ**持つ。
+
+    ``CosmosClient`` はリクエストごとに作るとトポロジ探索と TLS ハンドシェイクが
+    毎回走る。ここで一度だけ生成して全リクエストで使い回し（コネクションプールは
+    クライアントが内部で共有する）、shutdown で ``close()`` する。構築済みリポジトリは
+    ``app.state.repository`` に置き、ハンドラはそこから取る（配線は B-09 以降）。
+
+    認証だけの M1・ローカル・テストでは Cosmos が未構成のため、**何もせず DB 無しで
+    起動する**（``app.state.repository`` は ``None``）。DB を要する工程で
+    ``COSMOS_ENDPOINT`` / ``COSMOS_KEY`` / ``COSMOS_DATABASE`` を与えると点灯する。
+    """
+    settings = cosmos_settings_from_env()
+    client = None
+    application.state.repository = None
+    if settings.is_configured:
+        client = create_client(settings)
+        # ここでコンテナを冪等に用意する（B-07）。マイグレーションの適用（B-08）は
+        # この直後に足す予定の入り口。
+        application.state.repository = build_repository(client, settings)
+        logger.info("Cosmos に接続しました（リポジトリを app.state に配置）。")
+    else:
+        logger.info("Cosmos 未構成のため DB 無しで起動します（M1 認証のみ）。")
+    try:
+        yield
+    finally:
+        if client is not None:
+            client.close()
+
+
+app = FastAPI(title="Scrum Board", lifespan=lifespan)
 app.include_router(api_router)
 
 

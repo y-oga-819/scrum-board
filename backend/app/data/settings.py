@@ -5,8 +5,21 @@
 provision-azure.sh（B-05）が ``COSMOS_ENDPOINT`` / ``COSMOS_DATABASE`` を流し込む。
 鍵は ``COSMOS_KEY``（当面はキー接続。将来マネージド ID へ寄せる余地を残す）。
 
+**``CosmosClient`` はアプリのライフタイムで1個だけ生成して使い回す**（シングルトン）。
+リクエストごとに作ると、生成のたびにアカウントのトポロジ探索（メタデータ往復）と
+新規 TLS ハンドシェイクが走り、F1/B1 のコールドスタート環境では体感遅延に直結する。
+コネクションプール（keep-alive）はクライアントが内部で持つため自前管理は不要。
+
+そのため用途で入り口を2つに分ける。
+
+* **長命なサーバー**（FastAPI）… :func:`create_client` でクライアントを1度だけ作り、
+  ``main.py`` の lifespan が所有して使い回し、shutdown で ``close()`` する。
+  リポジトリは :func:`build_repository` でそのクライアントから組む。
+* **短命なプロセス**（スクリプト・マイグレーション CLI）… :func:`create_repository` で
+  一括生成してよい。プロセス終了で接続は片付く。
+
 実際に呼ぶのはデータを要する工程から（B-08 マイグレーション以降）。認証だけの
-M1 では DB を触らないため、``main.py`` はここに依存しない（未設定でも起動する）。
+M1 では DB を触らないため、未設定なら DB 無しで起動する（lifespan が何もしない）。
 """
 
 from __future__ import annotations
@@ -43,17 +56,39 @@ def cosmos_settings_from_env() -> CosmosSettings:
     )
 
 
+def create_client(settings: CosmosSettings) -> CosmosClient:
+    """``CosmosClient`` を生成する。**呼び出し側が1個だけ持って使い回す**こと。
+
+    サーバーでは lifespan がこれを所有し、shutdown で ``close()`` する。
+    """
+    return CosmosClient(url=settings.endpoint, credential=settings.key)
+
+
+def build_repository(
+    client: CosmosClient,
+    settings: CosmosSettings,
+    *,
+    clock: Clock | None = None,
+) -> CosmosRepository:
+    """既存クライアントからコンテナを用意し、本番 Repository を組む。
+
+    ``create_container_if_not_exists`` により、コンテナが無ければ PK ``/productId`` ＋
+    除外パス付きで作る（B-07）。既にあれば何もしない（冪等）。
+    """
+    database = client.get_database_client(settings.database)
+    container = ensure_container(database)
+    return CosmosRepository(container, clock=clock)
+
+
 def create_repository(
     settings: CosmosSettings,
     *,
     clock: Clock | None = None,
 ) -> CosmosRepository:
-    """接続してコンテナを用意し、本番 Repository を返す。
+    """短命プロセス向けの簡便版（クライアント生成＋リポジトリ構築を一括）。
 
-    ``create_container_if_not_exists`` により、コンテナが無ければ PK ``/productId`` ＋
-    除外パス付きで作る（B-07）。既にあれば何もしない。
+    スクリプトやマイグレーション CLI のように**プロセスが短命**で、終了時に接続が
+    自然に片付く場面で使う。長命なサーバーでは代わりに :func:`create_client` ＋
+    :func:`build_repository` を lifespan で使い、クライアントを使い回す。
     """
-    client = CosmosClient(url=settings.endpoint, credential=settings.key)
-    database = client.get_database_client(settings.database)
-    container = ensure_container(database)
-    return CosmosRepository(container, clock=clock)
+    return build_repository(create_client(settings), settings, clock=clock)
