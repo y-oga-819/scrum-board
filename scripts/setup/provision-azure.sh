@@ -61,9 +61,18 @@ echo "▶ サブスクリプション: ${SUBSCRIPTION_ID}"
 log() { printf '\n\033[36m▶ %s\033[0m\n' "$*"; }
 
 # ---- リソースグループ ----------------------------------------------------------
-log "リソースグループ ${RESOURCE_GROUP} (${LOCATION})"
-az group create --name "${RESOURCE_GROUP}" --location "${LOCATION}" --output none
-echo "  ✅ ある / 作った"
+# RG の location は「メタデータの置き場所」でしかなく、中のリソースは別リージョンでも
+# 構わない。既存 RG に別 location で create を投げると InvalidResourceGroupLocation で
+# 落ちるため、「無ければ作る」だけにして既存の location はそのまま尊重する
+# （リソース自体の配置は下の各コマンドの ${LOCATION} で決まる）。
+log "リソースグループ ${RESOURCE_GROUP}"
+if az group show --name "${RESOURCE_GROUP}" --output none 2>/dev/null; then
+  RG_LOCATION="$(az group show --name "${RESOURCE_GROUP}" --query location -o tsv)"
+  echo "  ✅ 既にある（location=${RG_LOCATION}。リソースは ${LOCATION} に作る）"
+else
+  az group create --name "${RESOURCE_GROUP}" --location "${LOCATION}" --output none
+  echo "  ✅ 作った (${LOCATION})"
+fi
 
 # ---- App Service プラン（F1・Linux） -------------------------------------------
 # F1 は無料枠。既定では選ばれないので --sku F1 を明示する。Linux（--is-linux）で作る。
