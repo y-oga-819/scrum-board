@@ -142,6 +142,47 @@ jobs:
           name: frontend-coverage-summary
           path: frontend/coverage-summary.md
 
+  # OpenAPI から生成した TypeScript 型が最新か検証する（B-12・D-20）。
+  # 型を単一の真実（FastAPI の OpenAPI）から生成する以上、生成し忘れをここで弾く。
+  # 既存ジョブを書き換えず独立ジョブにしてあるのは、並行開発（テスト基盤の CI 変更）と
+  # 衝突させないため。
+  types:
+    name: Types (OpenAPI → TypeScript)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.11"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install backend dependencies
+        run: uv sync
+        working-directory: backend
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Regenerate types from OpenAPI
+        run: make gen-types
+
+      # 生成物 schema.d.ts に差分が出たら、生成し忘れ（またはスキーマ変更の未反映）。
+      - name: Fail if generated types are out of date
+        run: |
+          if ! git diff --exit-code -- frontend/src/app/api/schema.d.ts; then
+            echo "::error::生成 TS 型が最新ではありません。'make gen-types' を実行してコミットしてください。"
+            exit 1
+          fi
+
   # 両ジョブのカバレッジ断片をまとめ、PR に貼る（同じコメントを更新する）。
   coverage-comment:
     name: Coverage PR comment
