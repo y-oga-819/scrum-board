@@ -12,7 +12,14 @@ name: Deploy
 on:
   push:
     branches: [main]
-  # 手動でも流せるようにしておく（Entra 実値の反映後の再デプロイなど）。
+    # デプロイされる成果物に影響する変更だけで発火させる（許可リスト）。
+    # docs/** や scripts/**、*.md だけの更新でフル再デプロイが走るのを避ける。
+    paths:
+      - 'frontend/**'
+      - 'backend/**'
+      - '.nvmrc'                        # Node バージョン（フロントのビルドに影響）
+      - '.github/workflows/deploy.yml'  # ワークフロー自体の変更は動かして検証する
+  # 手動でも流せるようにしておく（Entra 実値の反映後の再デプロイ・docs 以外の理由など）。
   workflow_dispatch:
 
 # OIDC トークンの発行に id-token: write が要る。ソース取得のため contents: read。
