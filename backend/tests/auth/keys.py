@@ -29,9 +29,7 @@ class SigningKeypair:
 
     def __init__(self, kid: str = TEST_KID) -> None:
         self.kid = kid
-        self._private_key = rsa.generate_private_key(
-            public_exponent=65537, key_size=2048
-        )
+        self._private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 
     @property
     def public_key(self) -> Any:

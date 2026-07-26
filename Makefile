@@ -12,7 +12,9 @@ BACKEND_DIR  := backend
 PORT         ?= 8000
 
 .PHONY: help install install-frontend install-backend build build-frontend \
-        dev dev-frontend dev-backend run test test-frontend test-backend clean
+        dev dev-frontend dev-backend run test test-frontend test-backend \
+        lint lint-frontend lint-backend typecheck typecheck-frontend \
+        typecheck-backend coverage coverage-frontend coverage-backend clean
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | \
@@ -62,6 +64,37 @@ test-frontend: ## Run frontend (Karma/Jasmine) tests headlessly
 	# required when running as root (CI / web sessions).
 	cd $(FRONTEND_DIR) && npm test -- --watch=false --browsers=ChromeHeadlessNoSandbox
 
+## ---- lint / typecheck -------------------------------------------------------
+
+lint: lint-backend lint-frontend ## Run all linters
+
+lint-backend: ## Lint backend (ruff check + format check)
+	cd $(BACKEND_DIR) && uv run ruff check . && uv run ruff format --check .
+
+lint-frontend: ## Lint frontend (ESLint)
+	cd $(FRONTEND_DIR) && npm run lint
+
+typecheck: typecheck-backend typecheck-frontend ## Run all type checks
+
+typecheck-backend: ## Type-check backend (mypy)
+	cd $(BACKEND_DIR) && uv run mypy
+
+typecheck-frontend: ## Type-check frontend (tsc --noEmit)
+	cd $(FRONTEND_DIR) && npm run typecheck
+
+## ---- coverage ---------------------------------------------------------------
+
+coverage: coverage-backend coverage-frontend ## Run all tests with coverage reports
+
+coverage-backend: ## Backend coverage (term + HTML in backend/htmlcov)
+	cd $(BACKEND_DIR) && uv run pytest --cov-report=html
+
+coverage-frontend: ## Frontend coverage (term + HTML in frontend/coverage)
+	cd $(FRONTEND_DIR) && npm run coverage
+
+## ---- clean ------------------------------------------------------------------
+
 clean: ## Remove build artifacts and caches
-	rm -rf $(FRONTEND_DIR)/dist $(FRONTEND_DIR)/.angular
+	rm -rf $(FRONTEND_DIR)/dist $(FRONTEND_DIR)/.angular $(FRONTEND_DIR)/coverage
+	rm -rf $(BACKEND_DIR)/htmlcov $(BACKEND_DIR)/coverage.xml $(BACKEND_DIR)/.coverage
 	find $(BACKEND_DIR) -type d -name __pycache__ -prune -exec rm -rf {} +

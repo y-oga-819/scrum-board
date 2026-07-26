@@ -15,10 +15,43 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
+    "pytest-cov>=6.0",
+    "ruff>=0.9",
+    "mypy>=1.13",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# デフォルトで app のカバレッジを計測し、未到達行を表示する。
+addopts = "--cov=app --cov-report=term-missing"
+
+[tool.coverage.run]
+source = ["app"]
+branch = true
+
+[tool.ruff]
+target-version = "py311"
+# フロントの Prettier printWidth に合わせて 100。
+line-length = 100
+
+# 既定のルールセットはバージョンで揺れるため、CI が決定的になるよう明示する。
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "I",   # isort（import 順）
+    "UP",  # pyupgrade（新しい構文への近代化）
+    "B",   # flake8-bugbear（バグになりやすい書き方）
+]
+ignore = [
+    # FastAPI では Depends()/Security() をデフォルト引数に置くのが定石。
+    "B008",
+]
+
+[tool.mypy]
+python_version = "3.11"
+# app と tests を対象に型チェックする（設定は明示的に、CI と手元で同じ結果に）。
+files = ["app", "tests"]
 
 [tool.setuptools.packages.find]
 where = ["."]

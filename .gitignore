@@ -12,6 +12,14 @@ backend/.venv/
 .pytest_cache/
 *.egg-info/
 
+# Coverage reports
+frontend/coverage/
+backend/htmlcov/
+backend/coverage.xml
+backend/coverage.json
+.coverage
+.coverage.*
+
 # Env / editor
 .env
 .env.*

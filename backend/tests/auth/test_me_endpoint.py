@@ -69,9 +69,7 @@ def test_me_end_to_end_with_valid_token(client: TestClient) -> None:
     kp = SigningKeypair()
     _bind_entra_resolver(kp)
 
-    res = client.get(
-        "/api/me", headers={"Authorization": f"Bearer {kp.mint()}"}
-    )
+    res = client.get("/api/me", headers={"Authorization": f"Bearer {kp.mint()}"})
 
     assert res.status_code == 200
     # API が検証した oid が返る（B-04: 端から端まで通ったことの可視化）。
