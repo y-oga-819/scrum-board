@@ -40,13 +40,13 @@
 |:---:|:---|:---|:---:|
 | **M1** | ★**1ページがEntra IDで保護される**（Easy Authなし） | B-01 〜 B-06 | ✅ **6 / 6** |
 | **M2** | ★**認可まで通る**（非メンバーは403・初回サインインで自動参加） | B-07 〜 B-10 | ✅ **4 / 4** |
-| **M3** | 開発の土台（テスト/CI/API規約/リポジトリ規約） | B-11 〜 B-14 | 0 / 4 |
+| **M3** | 開発の土台（テスト/CI/API規約/リポジトリ規約） | B-11 〜 B-14 | 1 / 4 |
 | **M4** | プロダクトバックログが運用できる | B-15 〜 B-20 | 0 / 6 |
 | **M5** | ★**スプリントが1周回る**（ここからドッグフーディング） | B-21 〜 B-26 | 0 / 6 |
 | **M6** | デイリースクラムがこの画面だけで完結する | B-27 〜 B-29 | 0 / 3 |
 | **M7** | 実運用に耐える | B-30 〜 B-31 | 0 / 2 |
 | **M8** | *（将来）* プロジェクトを自分たちで管理できる | B-32 〜 B-33 | 0 / 2 |
-| | | **合計** | **10 / 33** |
+| | | **合計** | **11 / 33** |
 
 > ★ **本プロジェクトの主題は「Easy Authを使わないEntra IDの認証・認可」のPoC**であり、
 > スクラムアプリはそれを実地で回すための題材を兼ねている（D-21）。
@@ -305,18 +305,33 @@ PoC自体を無検証で進めないため、**V-1〜V-4 のテストは B-04 �
 - [ ] GitHub Actions で毎PR実行され、**失敗でマージがブロックされる**
 - [ ] 必須4領域（I-1〜I-7／V-1〜V-4／rank／認可）の合意が文書化されている
 
-### ⬜ B-12 API共通規約の策定　`依存: B-04`
-> **方針決定済み** → [`D-20`](./decisions/D-20-api-conventions.md)
-> 読み=画面単位 / 書き=リソース単位の非対称API。RFC 9457。`If-Match` 必須。
+### ✅ B-12 API共通規約の策定　`依存: B-04`
+> **完了（2026-07-26）。** HTTP 境界の約束事を `backend/app/http/` に一手に集約した。
+> 個々の CRUD（B-15 以降）は、規約を書き散らさずここの部品に依存するだけで済む
+> （認可を各ハンドラの `if` ではなく依存で表したのと同じ発想）。
+> エラー翻訳は**唯一の翻訳点** `app/http/handlers.py` に集約し、`ProblemException`・
+> データ層 `DataError`（`http_status` で振り分け）・`RequestValidationError`・既存の
+> `HTTPException` の 4 系統を RFC 9457 problem+json に揃える（素の `{"detail": ...}` と
+> 混在しない）。`violations`（`app/http/problems.py` の `Violation`）で**どの不変条件で
+> 弾いたか**を機械可読にし、D-19 のテーブル駆動テストが偽陽性（`I-4` を意図した入力が
+> `I-3` で弾かれて通る）を防げる。`If-Match` は `require_if_match` 依存で必須にし、欠落は
+> 既存 `PreconditionRequiredError` を再利用して **428**（不一致 412 はデータ層が投げる）。
+> OpenAPI を単一の真実とし、`app.openapi` を差し替えて `Problem`/`Violation` を必ず
+> components に載せ、`openapi-typescript` で `frontend/src/app/api/schema.d.ts` を生成
+> （`make gen-types`）・コミットし、**CI の独立ジョブ `types` が再生成して差分を検出**する
+> （生成し忘れを弾く）。テストは problem+json の形／ステータス割当／violations／428・ETag
+> 往復／OpenAPI 注入を probe ルートで端から端まで検証（`make test-backend` 緑・125 件）。
+> 本番の product エンドポイントへの適用は B-15 以降（`problem_responses()` を `responses`
+> に展開して宣言する）。
 
-- [ ] RFC 9457（`application/problem+json`）が共通のエラー応答として動く
-- [ ] `violations` に**不変条件ID（I-4 等）が機械可読で載る**
-- [ ] ステータスコードの割当（401 / 403 / 404 / 409 / **412** / **428** / 422）が実装されている
-- [ ] `PATCH`/`DELETE` で **`If-Match` 欠落を428で弾く**（無条件更新の経路が存在しない）
-- [ ] 単一ドキュメント応答が `ETag` を返し、集約GETは各要素に `_etag` を含む
-- [ ] **サーバーを信頼境界とする**と明記（フロントのバリデーションはUX補助、正はAPI）
-- [ ] OpenAPI から TS型を生成し、**CIで生成物の差分を検出**する
-- [ ] クエリ規約（論理削除は常時除外・ページングなし・`ORDER BY rank, id` はサーバー保証）
+- [x] RFC 9457（`application/problem+json`）が共通のエラー応答として動く　`app/http/handlers.py`（`install_error_handlers`）
+- [x] `violations` に**不変条件ID（I-4 等）が機械可読で載る**　`app/http/problems.py`（`Violation` / `InvariantViolation`）
+- [x] ステータスコードの割当（401 / 403 / 404 / 409 / **412** / **428** / 422）が実装されている　`STATUS_PROBLEMS` ＋各ハンドラ
+- [x] `PATCH`/`DELETE` で **`If-Match` 欠落を428で弾く**（無条件更新の経路が存在しない）　`app/http/preconditions.py`（`require_if_match`）
+- [x] 単一ドキュメント応答が `ETag` を返し、集約GETは各要素に `_etag` を含む　`set_etag` ／ `_etag` は B-07 が全 doc に付与
+- [x] **サーバーを信頼境界とする**と明記（フロントのバリデーションはUX補助、正はAPI）　`app/http/__init__.py` の docstring ＋ D-20
+- [x] OpenAPI から TS型を生成し、**CIで生成物の差分を検出**する　`scripts/gen_openapi.py` ／ `make gen-types` ／ CI ジョブ `types`
+- [x] クエリ規約（論理削除は常時除外・ページングなし・`ORDER BY rank, id` はサーバー保証）　B-07 のポートが構造的に保証（`DEFAULT_ORDER=(rank,id)`・`NOT isDeleted`・ページングなし）
 
 ### ⬜ B-13 リポジトリ規約の整備　`依存: —`
 - [ ] LICENSE を配置した
@@ -553,4 +568,4 @@ PoC自体を無検証で進めないため、**V-1〜V-4 のテストは B-04 �
 
 ---
 
-_最終更新: 2026-07-26（B-10 ユーザー登録と認可ブートストラップ 完了。★M2 達成＝PoC 完成）_
+_最終更新: 2026-07-26（B-12 API共通規約 完了。problem+json／If-Match 必須／OpenAPI→TS 型生成）_
