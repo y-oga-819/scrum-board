@@ -12,7 +12,7 @@ BACKEND_DIR  := backend
 PORT         ?= 8000
 
 .PHONY: help install install-frontend install-backend build build-frontend \
-        dev dev-frontend dev-backend run test test-frontend test-backend \
+        dev dev-frontend dev-backend run test test-frontend test-backend test-cosmos \
         lint lint-frontend lint-backend typecheck typecheck-frontend \
         typecheck-backend coverage coverage-frontend coverage-backend clean
 
@@ -58,6 +58,11 @@ test: test-backend test-frontend ## Run all tests
 
 test-backend: ## Run backend (pytest) tests
 	cd $(BACKEND_DIR) && uv run pytest
+
+test-cosmos: ## Run layer-3 Cosmos contract tests (needs a running emulator; see conftest)
+	# Point COSMOS_ENDPOINT / COSMOS_KEY / COSMOS_DATABASE at an emulator first.
+	# Without them the suite skips (so plain `make test-backend` stays Cosmos-free).
+	cd $(BACKEND_DIR) && uv run pytest -m cosmos --no-cov
 
 test-frontend: ## Run frontend (Vitest, jsdom) tests headlessly
 	# Vitest runs on jsdom (no real browser), so nothing browser-specific is needed
