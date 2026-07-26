@@ -12,6 +12,7 @@
     "test": "ng test --watch=false",
     "e2e": "playwright test",
     "lint": "eslint .",
+    "gen:types": "openapi-typescript openapi.json -o src/app/api/schema.d.ts",
     "typecheck": "tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.spec.json --noEmit",
     "coverage": "ng test --watch=false --code-coverage"
   },
@@ -51,6 +52,7 @@
     "angular-eslint": "^20.7.0",
     "eslint": "^9.39.5",
     "jsdom": "^29.1.1",
+    "openapi-typescript": "^7.13.0",
     "typescript": "~5.9.2",
     "typescript-eslint": "^8.65.0",
     "vitest": "^3.2.7"

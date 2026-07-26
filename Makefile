@@ -14,7 +14,7 @@ PORT         ?= 8000
 .PHONY: help install install-frontend install-backend build build-frontend \
         dev dev-frontend dev-backend run test test-frontend test-backend test-cosmos test-e2e \
         lint lint-frontend lint-backend typecheck typecheck-frontend \
-        typecheck-backend coverage coverage-frontend coverage-backend clean
+        typecheck-backend gen-types coverage coverage-frontend coverage-backend clean
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | \
@@ -82,6 +82,15 @@ lint-backend: ## Lint backend (ruff check + format check)
 
 lint-frontend: ## Lint frontend (ESLint)
 	cd $(FRONTEND_DIR) && npm run lint
+
+## ---- type generation --------------------------------------------------------
+
+gen-types: ## Generate frontend TS types from the backend OpenAPI schema (D-20)
+	# OpenAPI（FastAPI が出力）を単一の真実とし、フロントの型を生成する。手書きに
+	# しないのは Python と TS で 2 つの真実が生まれるため。生成物 schema.d.ts はコミット
+	# し、CI が再生成して差分を検出する（生成し忘れを弾く）。
+	uv run --project $(BACKEND_DIR) python scripts/gen_openapi.py $(FRONTEND_DIR)/openapi.json
+	cd $(FRONTEND_DIR) && npm run gen:types
 
 typecheck: typecheck-backend typecheck-frontend ## Run all type checks
 
