@@ -35,6 +35,10 @@ PLAN_NAME="${AZ_PLAN_NAME:-plan-scrum-board}"
 WEBAPP_NAME="${AZ_WEBAPP_NAME:-scrum-board}"
 COSMOS_ACCOUNT="${AZ_COSMOS_ACCOUNT:-cosmos-scrum-board}"
 COSMOS_DATABASE="${AZ_COSMOS_DATABASE:-scrumboard}"
+# Cosmos のリージョンは App Service と別に指定できる。特定リージョンが容量不足
+# （ServiceUnavailable / high demand）のとき、空いている近隣リージョンへ逃がすため。
+# 既定は LOCATION と同じ（同居）。App Service と別地方にすると遅延が増える点に注意。
+COSMOS_LOCATION="${AZ_COSMOS_LOCATION:-$LOCATION}"
 PYTHON_RUNTIME="${AZ_PYTHON_RUNTIME:-PYTHON:3.11}"
 
 # 予算アラート。BUDGET_CONTACT は必ず設定する（未設定なら控えめな既定にフォールバック）。
@@ -158,18 +162,20 @@ az webapp update \
 # 無料レベルは 1 サブスクリプションに 1 アカウントのみ。既定では選ばれないため
 # --enable-free-tier true を明示する。作り直し時に別アカウントが無料枠を握っていると
 # 失敗する点に注意（その場合は既存の無料枠アカウントを流用する）。
-log "Cosmos DB アカウント ${COSMOS_ACCOUNT}（無料レベル）"
+log "Cosmos DB アカウント ${COSMOS_ACCOUNT}（無料レベル / ${COSMOS_LOCATION}）"
 if az cosmosdb show --name "${COSMOS_ACCOUNT}" --resource-group "${RESOURCE_GROUP}" --output none 2>/dev/null; then
   echo "  ✅ 既にある"
 else
+  # リージョンが容量不足（ServiceUnavailable）のときは AZ_COSMOS_LOCATION で
+  # 空いている近隣リージョンへ逃がす（例: AZ_COSMOS_LOCATION=japaneast）。
   az cosmosdb create \
     --name "${COSMOS_ACCOUNT}" \
     --resource-group "${RESOURCE_GROUP}" \
-    --locations regionName="${LOCATION}" failoverPriority=0 isZoneRedundant=False \
+    --locations regionName="${COSMOS_LOCATION}" failoverPriority=0 isZoneRedundant=False \
     --enable-free-tier true \
     --default-consistency-level Session \
     --output none
-  echo "  ✅ 作った（無料レベル）"
+  echo "  ✅ 作った（無料レベル / ${COSMOS_LOCATION}）"
 fi
 
 # データベース（コンテナは B-07 で PK /productId 付きで作るのでここでは作らない）。
