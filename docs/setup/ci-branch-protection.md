@@ -14,7 +14,7 @@ CI は毎 PR で lint・型チェック・テストを走らせる（[`.github/w
 | `Backend (ruff / mypy / pytest)` | 毎 PR | ✅ 必須 |
 | `Frontend (eslint / tsc / vitest)` | 毎 PR | ✅ 必須 |
 | `Backend Cosmos contract (層3 / emulator)` | 毎 PR | ⚠️ 下記参照 |
-| `E2E (Playwright, main only)` | main への push | ✅ 必須（ただし main でのみ走る） |
+| `E2E (Playwright)` | main への push | ✅ 必須（別ワークフロー [`e2e.yml`](../../.github/workflows/e2e.yml)。main でのみ走る） |
 
 - **層3（Cosmos 契約）**: エミュレータ起動を伴い、実行時間と安定性の当たりが
   読めない。**まずは非必須で回して緑の安定を確認し、安定したら必須へ昇格**する。

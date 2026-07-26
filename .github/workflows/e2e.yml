@@ -1,0 +1,52 @@
+name: E2E
+
+# 層4（Playwright）。単体・契約テスト（ci.yml）とは走るタイミングもゲート対象も
+# 違うのでワークフローを分ける。分単位で重いため**毎PRには載せず、main への push
+# （＝マージ時）だけ**回す（D-19 の CI 構成）。フローを有効化した直後の確認用に
+# 手動実行（workflow_dispatch）も用意する。
+#
+# 各フローは対象画面（M4/M5）が実装されるまで test.fixme で skip される。
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E flows
+        run: npm run e2e
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/playwright-report
