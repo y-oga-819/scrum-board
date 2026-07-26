@@ -24,6 +24,9 @@ from .documents import Document, DocumentType
 from .ids import prefix_for
 from .repository import Repository
 
+# member 以外の更新経路と同じ actor 規約。スクリプトによる登録は人ではなく手続き。
+SCRIPT_ACTOR = "system:add-member"
+
 
 class Role(StrEnum):
     """member の役割（D-21：2種のみ）。
@@ -96,4 +99,35 @@ def create_member(
         data={"userId": oid, "role": role.value},
         actor=actor,
         doc_id=member_id(oid),
+    )
+
+
+def upsert_member(
+    repo: Repository,
+    *,
+    product_id: str,
+    oid: str,
+    role: Role,
+    actor: str = SCRIPT_ACTOR,
+) -> Document:
+    """``mbr_<oid>`` を作る。既にあれば role を更新する（**再実行可能** — D-21）。
+
+    本番プロジェクトへの登録スクリプト（``scripts/add_member.py``）が使う。メンバーの
+    増加で必ず再実行されるため、二度目以降は既存を role 更新で上書きし、role が同じ
+    なら何もしない（無駄な etag 回転を避ける）。更新は楽観排他つき（``if_match``）で、
+    同時実行が黙って消えない（D-20）。
+    """
+    existing = get_member(repo, product_id=product_id, oid=oid)
+    if existing is None:
+        return create_member(
+            repo, product_id=product_id, oid=oid, role=role, actor=actor
+        )
+    if existing["role"] == role.value:
+        return existing
+    return repo.replace(
+        product_id=product_id,
+        doc_id=existing["id"],
+        changes={"role": role.value},
+        actor=actor,
+        if_match=existing["_etag"],
     )

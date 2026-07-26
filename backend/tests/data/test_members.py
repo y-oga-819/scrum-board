@@ -10,7 +10,14 @@ import pytest
 
 from app.data.errors import ConflictError
 from app.data.fake import InMemoryRepository
-from app.data.members import Role, create_member, get_member, is_member, member_id
+from app.data.members import (
+    Role,
+    create_member,
+    get_member,
+    is_member,
+    member_id,
+    upsert_member,
+)
 
 OID = "00000000-1111-2222-3333-444444444444"
 PRODUCT = "prd_sandbox"
@@ -64,6 +71,37 @@ def test_duplicate_member_conflicts(repo: InMemoryRepository) -> None:
 
     with pytest.raises(ConflictError):
         create_member(repo, product_id=PRODUCT, oid=OID, role=Role.MEMBER, actor=ACTOR)
+
+
+# --- upsert（本番登録スクリプトの再実行可能性。B-10・D-21） --------------------------
+
+
+def test_upsert_creates_when_absent(repo: InMemoryRepository) -> None:
+    doc = upsert_member(repo, product_id=PRODUCT, oid=OID, role=Role.ADMIN)
+
+    assert doc["id"] == member_id(OID)
+    assert doc["role"] == "admin"
+
+
+def test_upsert_updates_role_when_present(repo: InMemoryRepository) -> None:
+    # 再実行で role を昇格できる（member → admin）。楽観排他つきの更新（D-20）。
+    create_member(repo, product_id=PRODUCT, oid=OID, role=Role.MEMBER, actor=ACTOR)
+
+    doc = upsert_member(repo, product_id=PRODUCT, oid=OID, role=Role.ADMIN)
+
+    assert doc["role"] == "admin"
+    reread = get_member(repo, product_id=PRODUCT, oid=OID)
+    assert reread is not None
+    assert reread["role"] == "admin"
+
+
+def test_upsert_is_noop_when_role_unchanged(repo: InMemoryRepository) -> None:
+    # role が同じなら etag を回さない（無駄な書き込みをしない）。
+    created = create_member(repo, product_id=PRODUCT, oid=OID, role=Role.ADMIN, actor=ACTOR)
+
+    again = upsert_member(repo, product_id=PRODUCT, oid=OID, role=Role.ADMIN)
+
+    assert again["_etag"] == created["_etag"]
 
 
 def test_soft_deleted_member_is_not_a_member(repo: InMemoryRepository) -> None:
