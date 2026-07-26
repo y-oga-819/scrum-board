@@ -1,0 +1,287 @@
+# セットアップ手順書 — Entra ID アプリ登録（B-02）
+
+> **この手順書の位置づけ**
+> [`docs/progress.md`](../progress.md) の **B-02「Entra IDにアプリを登録する」** の成果物。
+> 設計の正は [提案書](../proposal.html)（08章 認証・認可 / 09章 環境構築の再現性）にあり、
+> 本書はそれを**再実行可能な形**に落とした実務手順である。
+>
+> 提案書 09章の方針に従い、**手順の中心は az CLI スクリプト**
+> （[`scripts/setup/register-entra-app.sh`](../../scripts/setup/register-entra-app.sh)）に置く。
+> ポータルのクリック手順は UI 変更で静かに陳腐化するため、
+> **CLI で完結しない部分だけを本書の文章で補う。**
+
+---
+
+## 0. なぜスクリプト中心なのか
+
+アプリ登録は一度きりの作業に見えるが、**無料枠の作り直し・検証環境の追加・
+メンバーの増加で必ず再実行される**（提案書 08/09章）。そして Entra ID の
+**設定漏れは後の工程で分かりにくい形で表面化する**。この2点から、手順は
+「読んでクリックする文章」ではなく「**流せば同じ状態に収束するスクリプト**」で持つ。
+
+スクリプトは**冪等**である。同じ表示名のアプリが既にあれば作り直さず、設定だけを
+再適用する。何度流しても壊れない。
+
+---
+
+## 1. 前提
+
+| 項目 | 内容 |
+|:---|:---|
+| ツール | [Azure CLI (`az`)](https://aka.ms/azure-cli) と `uuidgen`（macOS / 主要 Linux に同梱） |
+| サインイン | `az login` 済みで、**対象テナントが選択されている**こと |
+| 権限 | アプリ登録の権限（**アプリケーション開発者**ロール、またはテナントが一般ユーザーのアプリ登録を許可） |
+| ライセンス | **Entra ID Free で足りる**（ユーザー単位の割り当てまで可能。グループ単位や条件付きアクセスは P1 以上 — 提案書 09章） |
+
+```bash
+az login                      # 対象テナントでサインイン
+az account show               # テナントが合っているか確認
+# 複数テナントに属する場合:
+# az login --tenant <tenantId>
+```
+
+---
+
+## 2. 実行
+
+> **前提の確認**: B-02 は **Azure リソースも CD も必要としない。**
+> アプリ登録は Entra ID 上のオブジェクトで、App Service とは独立して作れる。
+> **ローカルで `az login` してこのスクリプトを流すだけ**でよい。認証PoC
+> （B-03/B-04）は `localhost:4200` だけで検証できる順序にしてある（D-21）。
+> App Service の作成（B-05）・CD による本番デプロイ（B-06）は**この後の工程**。
+
+リポジトリのルートで実行する。
+
+**① 認証PoC 段階（B-05 より前 — App Service がまだ無い）**
+本番ホスト名は不要。ローカルのリダイレクトURIだけが登録される。
+
+```bash
+az login
+./scripts/setup/register-entra-app.sh
+```
+
+**② B-05 で App Service 名（`<アプリ名>`）が決まったあと**
+同じスクリプトに `APP_HOSTNAME` を渡して**再実行**する。本番SPAと Easy Auth 保険の
+URIが追加される（冪等なので安全に上書きされる）。
+
+```bash
+APP_HOSTNAME=<アプリ名>.azurewebsites.net ./scripts/setup/register-entra-app.sh
+```
+
+> **`<アプリ名>` とは**: B-05 で作る **App Service の名前**。`https://<アプリ名>.azurewebsites.net`
+> が本番URLになる。Azure 全体で**グローバルに一意**な名前で、**B-05 で決めるまで存在しない**。
+> だから①の段階では渡さなくてよい。
+
+> **`az` がインストールできない場合** → [付録A（ポータル/GUI 手順）](#付録a--ポータルgui での手順az-が使えないときのフォールバック)
+> でブラウザだけで同じ登録ができる。
+
+### 渡せる環境変数
+
+| 変数 | 既定 | 意味 |
+|:---|:---|:---|
+| `DISPLAY_NAME` | `scrum-board` | アプリの表示名 |
+| `APP_HOSTNAME` | `<アプリ名>.azurewebsites.net` | 本番 App Service のホスト |
+| `LOCAL_ORIGIN` | `http://localhost:4200` | ローカル開発オリジン |
+| `GRANT_CONSENT` | `0` | `1` で管理者同意まで実行（Global Admin 権限が必要） |
+
+スクリプトが行うこと（＝提案書 08章「アプリ登録チェックリスト」の自動化）:
+
+1. **シングルテナント**（`AzureADMyOrg`）でアプリ登録
+2. リダイレクトURIを **SPA と Web に分けて**登録（§3 で詳述）
+3. API公開 `api://<clientId>/access_as_user` ＋ `requestedAccessTokenVersion: 2`
+4. APIアクセス許可 `openid` `profile` `email`（Microsoft Graph 委任）
+5. エンタープライズアプリを作成し **「割り当てが必要 = はい」**
+6. （任意）管理者同意
+7. **控える値**（テナントID / クライアントID ほか）を出力
+
+---
+
+## 3. リダイレクトURI — なぜ SPA と Web を分けるのか（重要）
+
+提案書 08章は3つのリダイレクトURIを「まとめて登録する」と書いているが、
+**プラットフォームの割り当てを間違えると `AADSTS9002326` で必ず詰まる**
+（最頻出の事故）。スクリプトは次のように**正しく振り分けている**。
+
+| URI | プラットフォーム | 用途 | 登録タイミング |
+|:---|:---|:---|:---|
+| `http://localhost:4200` | **SPA** | ローカル開発。MSAL.js が実際に使う | ①今すぐ |
+| `https://<host>` | **SPA** | 本番。MSAL.js が実際に使う | ②B-05 後（`APP_HOSTNAME`） |
+| `https://<host>/.auth/login/aad/callback` | **Web** | Easy Auth に切替える場合の保険（D-10） | ②B-05 後（`APP_HOSTNAME`） |
+
+`AADSTS9002326`（*cross-origin token redemption is permitted only for the
+'Single-Page Application' client-type*）は、**MSAL.js が使う URI を Web に
+登録したとき**に起きる。だから本番・ローカルの2つは必ず **SPA** に置く。
+Easy Auth のコールバックはサーバー側フロー用なので **Web** でよく、こちらは
+9002326 を引き起こさない。**ローカル用を忘れると開発初日に止まる**ので3つ入れておく。
+
+---
+
+## 4. CLI で完結しない手動ステップ
+
+以下は「誰を入れるか」「同意を与えられる権限があるか」という**人間の判断**が
+絡むため、スクリプトからは切り離してある。ポータル（GUI）での操作を前提に記す。
+
+### 4-1. サインインを許可するユーザーの割り当て（必須）
+
+「割り当てが必要 = はい」にしてあるため、**割り当てたユーザーだけ**がサインインできる。
+
+1. Entra 管理センター → **エンタープライズ アプリケーション** → `scrum-board`
+2. **ユーザーとグループ** → **ユーザーの追加** → 対象ユーザーを選ぶ
+
+CLI で行う場合（`<userObjectId>` は `az ad user show --id <upn> --query id -o tsv`）:
+
+```bash
+APP_ID=<clientId>
+SP_ID=$(az ad sp list --filter "appId eq '$APP_ID'" --query '[0].id' -o tsv)
+az rest --method POST \
+  --uri "https://graph.microsoft.com/v1.0/servicePrincipals/$SP_ID/appRoleAssignedTo" \
+  --headers 'Content-Type=application/json' \
+  --body '{"principalId":"<userObjectId>","resourceId":"'"$SP_ID"'","appRoleId":"00000000-0000-0000-0000-000000000000"}'
+```
+
+### 4-2. 管理者同意（テナント方針次第）
+
+`openid` / `profile` / `email` は通常ユーザー同意で足りるが、テナントが
+ユーザー同意を無効化している場合は管理者同意が要る。Global Admin なら:
+
+- ポータル: アプリ登録 → **API のアクセス許可** → **管理者の同意を与えます**
+- CLI: スクリプトを `GRANT_CONSENT=1` で再実行、または `az ad app permission admin-consent --id <clientId>`
+
+---
+
+## 5. 控える値
+
+スクリプト末尾が出力する。**トークンではない**のでリポジトリにコミットしても安全
+（`.env` に置いて B-03 / B-04 で参照する）。
+
+```
+ENTRA_TENANT_ID=<tenantId>
+ENTRA_CLIENT_ID=<clientId>
+ENTRA_API_SCOPE=api://<clientId>/access_as_user
+```
+
+後続PBIが使う導出値:
+
+| 値 | 用途 |
+|:---|:---|
+| `api://<clientId>/access_as_user` | B-03 フロントが要求するスコープ |
+| `https://login.microsoftonline.com/<tenantId>/v2.0` | **V-3**（`iss` の期待値） |
+| `https://login.microsoftonline.com/<tenantId>/discovery/v2.0/keys` | **V-1**（JWKS の取得元） |
+| `<clientId>` | **V-2**（`aud` の期待値） |
+
+---
+
+## 6. 完了条件チェックリスト（B-02 / 提案書 08章）
+
+スクリプトを流し、§4 の手動ステップを終えたら、以下を確認する。
+これがそのまま [`docs/progress.md`](../progress.md) の B-02 チェック項目に対応する。
+
+- [ ] **シングルテナント**で登録されている（`signInAudience = AzureADMyOrg`）
+- [ ] プラットフォームが **シングルページアプリケーション**（本番・ローカルが **SPA** 側）→ `AADSTS9002326` 回避
+- [ ] スコープ **`api://<clientId>/access_as_user`** が公開されている
+- [ ] マニフェスト **`requestedAccessTokenVersion: 2`**
+- [ ] APIアクセス許可 **`openid` `profile` `email`**
+- [ ] エンタープライズアプリ **「割り当てが必要 = はい」** ＋ 利用者を割り当て済み
+- [ ] リダイレクトURI **3種**（本番SPA / `localhost:4200` / Easy Auth 保険）が登録済み ※本番の2つは B-05 後の再実行で追加。PoC段階は `localhost` のみで可
+- [ ] **テナントID・クライアントID** を控えた（シークレットは不要）
+- [ ] **手順が再実行可能な形（az CLI 中心）で残っている** ← 本書とスクリプトがこれを満たす
+
+### 登録内容を CLI で検証する
+
+```bash
+APP_ID=<clientId>
+az ad app show --id "$APP_ID" --query "{
+  audience: signInAudience,
+  identifierUris: identifierUris,
+  tokenVersion: api.requestedAccessTokenVersion,
+  scopes: api.oauth2PermissionScopes[].value,
+  spaRedirects: spa.redirectUris,
+  webRedirects: web.redirectUris
+}"
+
+# 「割り当てが必要」が true か
+SP_ID=$(az ad sp list --filter "appId eq '$APP_ID'" --query '[0].id' -o tsv)
+az ad sp show --id "$SP_ID" --query appRoleAssignmentRequired
+```
+
+---
+
+## 7. トラブルシュート
+
+| 症状 | 原因と対処 |
+|:---|:---|
+| `AADSTS9002326` | MSAL が使う URI が **Web** に入っている。§3 のとおり本番・ローカルは **SPA** に置く（再実行で修正される） |
+| `Insufficient privileges` | アプリ登録／同意の権限不足。アプリケーション開発者ロールの付与、または管理者に §4-2 を依頼 |
+| サインインできるが 403 | これは B-09/B-10（認可）の範囲。アプリ登録の問題ではない（`member` 未登録） |
+| ローカルでサインインが返ってこない | `http://localhost:4200` が **SPA** リダイレクトに無い。スクリプト再実行で復旧 |
+
+---
+
+## 付録A — ポータル（GUI）での手順　※az が使えないときのフォールバック
+
+> **正はあくまで az スクリプト**（提案書 09章：クリック手順は UI 変更で静かに陳腐化する）。
+> ただし `az` をインストールできない・Cloud Shell が使えない（サブスクリプション未作成）
+> 場合は、ブラウザだけで B-02 を完了できる。**この付録は §1〜§6 と同じ結果を GUI で作る。**
+>
+> ブラウザで az を動かす別解として **Azure Cloud Shell**（ポータル上の `>_` アイコン、
+> az プリインストール済み）で本編のスクリプトをそのまま流す手もあるが、Cloud Shell は
+> **Azure サブスクリプションを要求する**。B-02 は Entra テナントだけで足りるため、
+> サブスクリプション未作成の段階ではこの GUI 手順が最も確実。
+
+操作は **Microsoft Entra 管理センター**（<https://entra.microsoft.com>）で行う。
+`az login` に相当するのは、対象テナントの管理者/開発者アカウントでのブラウザサインイン。
+
+### A-1. アプリを登録する
+
+1. **アプリの登録** → **新規登録**
+2. **名前**: `scrum-board`
+3. **サポートされているアカウントの種類**: **この組織ディレクトリのみ（シングルテナント）**
+4. **リダイレクト URI**: プラットフォームで **シングルページ アプリケーション (SPA)** を選び、`http://localhost:4200` を入力
+5. **登録** を押す
+6. 概要ページで **アプリケーション (クライアント) ID** と **ディレクトリ (テナント) ID** を控える（§5 の `CLIENT_ID` / `TENANT_ID`）
+
+### A-2. API を公開する（`api://<clientId>/access_as_user`）
+
+**API の公開** ブレード:
+
+1. 「アプリケーション ID の URI」の **追加** → `api://<clientId>` のまま **保存**
+2. **スコープの追加**:
+   - スコープ名: `access_as_user`
+   - 同意できるのは: **管理者とユーザー**
+   - 表示名・説明を入力（例: 「スクラムボードにアクセスする」）
+   - **スコープの追加** を押す
+
+### A-3. トークンバージョンを 2 にする
+
+**マニフェスト** ブレード → `requestedAccessTokenVersion` を `null` から **`2`** に変更 → **保存**。
+（これで発行トークンの `iss` が `.../v2.0` になり、API 側の **V-3** と一致する）
+
+### A-4. API のアクセス許可（`openid` `profile` `email`）
+
+**API のアクセス許可** ブレード → **アクセス許可の追加** → **Microsoft Graph** →
+**委任されたアクセス許可** → `openid` `profile` `email` を検索して追加。
+（テナント方針次第で **管理者の同意を与えます** も押す）
+
+### A-5. リダイレクト URI を仕上げる
+
+**認証** ブレード:
+
+- **シングルページ アプリケーション** に `http://localhost:4200`（登録済み）。
+  B-05 で App Service 名が決まったら **`https://<アプリ名>.azurewebsites.net` を同じ SPA に追加**。
+- Easy Auth 保険は **プラットフォームの追加 → Web** で
+  `https://<アプリ名>.azurewebsites.net/.auth/login/aad/callback` を追加（B-05 後で可）。
+- ⚠️ **本番・ローカルは必ず SPA 側**。Web に入れると `AADSTS9002326`（§3）。
+
+### A-6. ユーザー割り当てを必須にする（エンタープライズアプリ）
+
+1. **エンタープライズ アプリケーション** → `scrum-board` を開く
+2. **プロパティ** → **割り当てが必要ですか? = はい** → **保存**
+3. **ユーザーとグループ** → **ユーザーの追加** → サインインを許可するユーザーを割り当て
+
+完了したら §6 のチェックリストで確認する（GUI でも CLI でも到達点は同じ）。
+後で `az` が使えるようになったら、**スクリプトを一度流しておくと以後の再現が効く**
+（同じ表示名なら作り直さず設定を揃えるだけ。冪等）。
+
+---
+
+_関連: [提案書 08章 認証・認可 / 09章](../proposal.html) ・ [D-10（Easy Auth を使わない）](../proposal.html) ・ [D-21](../decisions/D-21-bootstrap-and-migration.md)_
