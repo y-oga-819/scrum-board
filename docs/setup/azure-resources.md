@@ -66,8 +66,10 @@ App Service には次のアプリ設定が入る:
 ## CLI で完結しない手動ステップ
 
 1. **Entra リダイレクト URI の登録**（B-02 側）
-   公開 URL が確定したら、Entra のアプリ登録（SPA プラットフォーム）に
-   `https://<webapp>.azurewebsites.net/` を追加する。スクリプト末尾に URL が出る。
+   公開 URL が確定したら、Entra のアプリ登録（**SPA プラットフォーム**）に
+   `https://<webapp>.azurewebsites.net`（**末尾スラッシュなし**）を追加する。
+   MSAL は `redirectUri=window.location.origin` を送るため（`frontend/src/app/auth/auth.config.ts`）、
+   スラッシュ有無が違うと `AADSTS` で弾かれる。スクリプト末尾に URL が出る。
 2. **予算通知の受信確認**
    初回はテスト通知が届くか、[コスト管理] → [予算] で設定を確認する。
 

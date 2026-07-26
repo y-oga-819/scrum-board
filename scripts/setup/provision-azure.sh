@@ -246,8 +246,10 @@ cat <<EOF
 次のステップ:
   1) B-02 の Entra 実値をまだ入れていなければ、下記で反映してから再実行:
        ENTRA_TENANT_ID=... ENTRA_CLIENT_ID=... ./scripts/setup/provision-azure.sh
-  2) Entra のリダイレクト URI に本番 SPA を登録:
-       https://${DEFAULT_HOST}/
+  2) Entra のリダイレクト URI（SPA プラットフォーム）に本番 SPA を登録:
+       https://${DEFAULT_HOST}
+       ※末尾スラッシュなし。MSAL は redirectUri=window.location.origin を送るため
+         （frontend/src/app/auth/auth.config.ts）。スラッシュ有無が違うと AADSTS で弾かれる。
   3) GitHub Actions からデプロイできるように OIDC を設定:
        AZ_RESOURCE_GROUP=${RESOURCE_GROUP} AZ_WEBAPP_NAME=${WEBAPP_NAME} \\
          ./scripts/setup/setup-github-oidc.sh <github-owner>/<repo>
