@@ -78,7 +78,7 @@ jobs:
           path: backend/coverage-summary.md
 
   frontend:
-    name: Frontend (eslint / tsc / karma)
+    name: Frontend (eslint / tsc / vitest)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -102,31 +102,26 @@ jobs:
       - name: Type check (tsc)
         run: npm run typecheck
 
-      # ChromeHeadlessNoSandbox は Angular ビルダー組み込みのランチャー。
-      # root で動く CI では --no-sandbox が必要になる。
-      # Chrome は ubuntu-latest ランナーにプリインストールされている。
-      # text-summary はコンソールに出るので tee で控えておき、後で解析する。
-      - name: Test (Karma/Jasmine + coverage)
-        run: |
-          npm test -- --watch=false --browsers=ChromeHeadlessNoSandbox --code-coverage \
-            2>&1 | tee karma-output.txt
+      # Vitest は jsdom 上で走る（実ブラウザ不要）。code-coverage で
+      # coverage/coverage-summary.json（json-summary）と HTML を出力する（angular.json で設定）。
+      - name: Test (Vitest + coverage)
+        run: npm run coverage
 
-      # Karma の text-summary 出力から PR コメント用の Markdown 断片を作る。
+      # coverage-summary.json から PR コメント用の Markdown 断片を作る（backend と同じ形）。
       - name: Build coverage summary
         if: always()
         run: |
-          sed -r 's/\x1b\[[0-9;]*m//g' karma-output.txt > karma-clean.txt
-          pct() { grep -E "^$1" karma-clean.txt | grep -oE '[0-9.]+%' | head -1; }
-          {
-            echo "### Frontend (Karma)"
-            echo
-            echo "| Metric | Coverage |"
-            echo "| --- | --- |"
-            echo "| Statements | $(pct Statements) |"
-            echo "| Branches | $(pct Branches) |"
-            echo "| Functions | $(pct Functions) |"
-            echo "| Lines | $(pct Lines) |"
-          } > coverage-summary.md
+          node - <<'JS' > coverage-summary.md
+          const t = require('./coverage/coverage-summary.json').total;
+          const row = (m) => `| ${m[0]} | ${m[1].pct}% (${m[1].covered}/${m[1].total}) |`;
+          console.log('### Frontend (Vitest)\n');
+          console.log('| Metric | Coverage |');
+          console.log('| --- | --- |');
+          for (const m of [['Statements', t.statements], ['Branches', t.branches],
+                           ['Functions', t.functions], ['Lines', t.lines]]) {
+            console.log(row(m));
+          }
+          JS
 
       - name: Upload coverage report
         if: always()
@@ -141,6 +136,60 @@ jobs:
         with:
           name: frontend-coverage-summary
           path: frontend/coverage-summary.md
+
+  # 層3: Cosmos 契約テスト（412／除外パス）。フェイクで通っても本番で壊れる領域だけを
+  # エミュレータで裏取りする（D-19）。日常の backend ジョブは Cosmos なしで走るため、
+  # 層3を別ジョブに分けて遅さを隔離する。
+  cosmos-contract:
+    name: Backend Cosmos contract (層3 / emulator)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      # Linux 版 Cosmos エミュレータ。Python SDK はゲートウェイモード（:8081）で
+      # 話すため、契約テストは connection_verify=False で自己署名証明書を許容する。
+      - name: Start Cosmos DB emulator
+        run: |
+          docker run -d --name cosmos-emulator \
+            -p 8081:8081 -p 10250-10255:10250-10255 \
+            -e AZURE_COSMOS_EMULATOR_PARTITION_COUNT=3 \
+            -e AZURE_COSMOS_EMULATOR_ENABLE_DATA_PERSISTENCE=false \
+            mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:latest
+
+      # 固定 sleep ではなく ready ポーリング（D-19）。エミュレータの証明書
+      # エンドポイントが 200 を返した時点で即座に先へ進む。sleep はポーリング
+      # 間隔であって「起動を待つ固定待機」ではない。
+      - name: Wait for emulator (poll readiness, not fixed sleep)
+        run: |
+          for i in $(seq 1 60); do
+            if curl -ksf https://localhost:8081/_explorer/emulator.pem >/dev/null; then
+              echo "emulator ready after ${i} poll(s)"; exit 0
+            fi
+            echo "polling emulator readiness… (${i}/60)"; sleep 5
+          done
+          echo "::error::emulator did not become ready in time"
+          docker logs cosmos-emulator || true
+          exit 1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: uv sync --extra dev
+
+      # -m cosmos で層3だけを選ぶ。conftest は env があれば skip せず走る。
+      - name: Cosmos contract tests (層3)
+        env:
+          COSMOS_ENDPOINT: https://localhost:8081
+          # エミュレータの周知の固定キー（公開値・秘密ではない）。
+          COSMOS_KEY: C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==
+          COSMOS_DATABASE: scrumboard-contract
+        run: uv run pytest -m cosmos --no-cov
 
   # OpenAPI から生成した TypeScript 型が最新か検証する（B-12・D-20）。
   # 型を単一の真実（FastAPI の OpenAPI）から生成する以上、生成し忘れをここで弾く。

@@ -12,7 +12,7 @@ BACKEND_DIR  := backend
 PORT         ?= 8000
 
 .PHONY: help install install-frontend install-backend build build-frontend \
-        dev dev-frontend dev-backend run test test-frontend test-backend \
+        dev dev-frontend dev-backend run test test-frontend test-backend test-cosmos test-e2e \
         lint lint-frontend lint-backend typecheck typecheck-frontend \
         typecheck-backend gen-types coverage coverage-frontend coverage-backend clean
 
@@ -59,10 +59,19 @@ test: test-backend test-frontend ## Run all tests
 test-backend: ## Run backend (pytest) tests
 	cd $(BACKEND_DIR) && uv run pytest
 
-test-frontend: ## Run frontend (Karma/Jasmine) tests headlessly
-	# ChromeHeadlessNoSandbox is provided by the Angular builder; --no-sandbox is
-	# required when running as root (CI / web sessions).
-	cd $(FRONTEND_DIR) && npm test -- --watch=false --browsers=ChromeHeadlessNoSandbox
+test-cosmos: ## Run layer-3 Cosmos contract tests (needs a running emulator; see conftest)
+	# Point COSMOS_ENDPOINT / COSMOS_KEY / COSMOS_DATABASE at an emulator first.
+	# Without them the suite skips (so plain `make test-backend` stays Cosmos-free).
+	cd $(BACKEND_DIR) && uv run pytest -m cosmos --no-cov
+
+test-e2e: ## Run Playwright E2E flows (layer 4). Flows are fixme until their screens land.
+	# Enable a flow by removing its test.fixme once the owning PBI's screen exists.
+	cd $(FRONTEND_DIR) && npm run e2e
+
+test-frontend: ## Run frontend (Vitest, jsdom) tests headlessly
+	# Vitest runs on jsdom (no real browser), so nothing browser-specific is needed
+	# and CI stays stable. See D-19; Karma/Jasmine was retired in B-11.
+	cd $(FRONTEND_DIR) && npm test
 
 ## ---- lint / typecheck -------------------------------------------------------
 
@@ -98,7 +107,7 @@ coverage: coverage-backend coverage-frontend ## Run all tests with coverage repo
 coverage-backend: ## Backend coverage (term + HTML in backend/htmlcov)
 	cd $(BACKEND_DIR) && uv run pytest --cov-report=html
 
-coverage-frontend: ## Frontend coverage (term + HTML in frontend/coverage)
+coverage-frontend: ## Frontend coverage (text-summary + HTML in frontend/coverage)
 	cd $(FRONTEND_DIR) && npm run coverage
 
 ## ---- clean ------------------------------------------------------------------

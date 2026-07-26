@@ -19,13 +19,13 @@ describe('ProductService', () => {
   it('starts empty (no product hardcoded)', () => {
     expect(service.products()).toEqual([]);
     expect(service.selected()).toBeNull();
-    expect(service.hasProducts()).toBeFalse();
+    expect(service.hasProducts()).toBe(false);
   });
 
   it('defaults the selection to the first product', () => {
     service.setProducts([SANDBOX, SCRUM]);
     expect(service.selected()).toEqual(SANDBOX);
-    expect(service.hasProducts()).toBeTrue();
+    expect(service.hasProducts()).toBe(true);
   });
 
   it('switches to a product that exists in the list', () => {

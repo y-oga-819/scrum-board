@@ -34,18 +34,28 @@ FastAPI はこのディレクトリを配信する。
 
 ## ユニットテスト
 
-[Karma](https://karma-runner.github.io) で実行する。
+[Vitest](https://vitest.dev) で実行する（Angular の `@angular/build:unit-test`
+ビルダー経由・D-19）。既定は **jsdom** 上で走り実ブラウザを起動しないため、CI が
+安定し `--no-sandbox` のような回避策も要らない。
 
 ```bash
-ng test
-# ルート実行（root/CI ではサンドボックス無効化が必要）:
-#   make test-frontend   → --browsers=ChromeHeadlessNoSandbox で起動
+ng test              # ルートからは `make test-frontend`
+ng test --code-coverage   # ルートからは `make coverage-frontend`
 ```
 
 ## E2E テスト
 
-Angular CLI は E2E フレームワークを同梱しない。本プロジェクトでは **B-11（テスト基盤）**
-で Playwright を導入する予定（`docs/decisions/D-19`）。
+[Playwright](https://playwright.dev) を使う（B-11・D-19 の層4）。フローは
+`e2e/` に置き、設定は `playwright.config.ts`。
+
+```bash
+npm run e2e          # ルートからは `make test-e2e`
+```
+
+主要フロー5本の受け皿はあるが、**対象画面（M4/M5）が実装されるまで各フローは
+`test.fixme` で skip される**。画面ができた PBI で `test.fixme` を外して本体を
+埋める。CI は **毎 PR**（別ワークフロー `.github/workflows/e2e.yml`）で回す
+— main への push でデプロイするため、動作確認はマージ前に済ませる。
 
 ## 参考
 

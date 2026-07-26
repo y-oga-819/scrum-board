@@ -27,6 +27,11 @@ dev = [
 testpaths = ["tests"]
 # デフォルトで app のカバレッジを計測し、未到達行を表示する。
 addopts = "--cov=app --cov-report=term-missing"
+# 層3（Cosmos 契約）は実サービス相当（エミュレータ）が要る。環境変数が未設定なら
+# モジュールごと skip するので、日常の `pytest` は Cosmos なしで緑のまま（D-19）。
+markers = [
+    "cosmos: 層3 Cosmos 契約テスト。エミュレータ接続（COSMOS_ENDPOINT/KEY）が要る",
+]
 
 [tool.coverage.run]
 source = ["app"]
