@@ -6,7 +6,7 @@ const angular = require('angular-eslint');
 module.exports = tseslint.config(
   {
     // 生成物・ビルド成果物は Lint 対象外（node_modules は既定で無視される）。
-    ignores: ['dist/', 'coverage/', '.angular/', 'out-tsc/'],
+    ignores: ['dist/', 'coverage/', '.angular/', 'out-tsc/', 'playwright-report/', 'test-results/'],
   },
   {
     files: ['**/*.ts'],
