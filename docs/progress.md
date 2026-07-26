@@ -147,16 +147,27 @@ PoC自体を無検証で進めないため、**V-1〜V-4 のテストは B-04 �
 - [x] **ユーザー解決がポートとして切り出されている**（`CurrentUserResolver`。テストは `dependency_overrides` で差し替え — D-21）
 - [x] サインイン後、**APIが検証した `oid` が画面に表示される**（`GET /api/me` → home の「API が検証した oid」）　※実サインインでの疎通は B-02 の実値待ち
 
-### ⬜ B-05 Azureリソースを用意する　`依存: —`
-- [ ] App Service F1 を作成
-- [ ] Cosmos DB **無料レベル**を明示的に選択して作成
-- [ ] **予算アラートを設定した**（Azureは自動の支出上限がない）
-- [ ] 手順が再実行可能な形で残っている
+### 🟨 B-05 Azureリソースを用意する　`依存: —`
+> **スクリプト・手順書は用意済み。** 再実行可能な az CLI スクリプト
+> （[`scripts/setup/provision-azure.sh`](../scripts/setup/provision-azure.sh)）と
+> 手順書（[`docs/setup/azure-resources.md`](./setup/azure-resources.md)）で、App Service F1・
+> Cosmos DB 無料レベル・予算アラートまでを冪等に作れる。**実リソースの作成（`az login`
+> 後の実行）だけがユーザー作業**。B-02 の実値を渡せば App Service の認証設定まで入る。
+- [ ] App Service F1 を作成　※スクリプト用意済み・実行待ち
+- [ ] Cosmos DB **無料レベル**を明示的に選択して作成　※`--enable-free-tier true` を明示済み・実行待ち
+- [ ] **予算アラートを設定した**（Azureは自動の支出上限がない）　※50/80/100% 通知をスクリプト化・実行待ち
+- [x] 手順が再実行可能な形で残っている（az CLI 中心・冪等。GUI 限定部分だけ手順書で補足）
 
-### ⬜ B-06 デプロイパイプラインを通す　`依存: B-05, B-01`
-- [ ] main への push で App Service に自動デプロイされる
-- [ ] 公開URLで表示できる
-- [ ] **公開URLでもサインインが通る**（本番リダイレクトURIの確認）
+### 🟨 B-06 デプロイパイプラインを通す　`依存: B-05, B-01`
+> **ワークフロー・OIDC 設定スクリプトは用意済み。** main への push で SPA ビルド → 依存書き出し
+> → 単一パッケージで App Service へ zip デプロイする
+> （[`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml)）。認証は**シークレットレス
+> （OIDC）**で、[`scripts/setup/setup-github-oidc.sh`](../scripts/setup/setup-github-oidc.sh) が
+> リソースグループ限定の権限まで設定する。**実デプロイは B-05 の実行と GitHub Variables
+> 登録の後**（手順は [`docs/setup/deploy.md`](./setup/deploy.md)）。
+- [ ] main への push で App Service に自動デプロイされる　※ワークフロー実装済み・B-05実行と変数登録待ち
+- [ ] 公開URLで表示できる　※スモークテスト（/api/health）まで組み込み済み・実デプロイ待ち
+- [ ] **公開URLでもサインインが通る**（本番リダイレクトURIの確認）　※B-02の実値・本番SPAリダイレクトURI登録待ち
 
 ---
 
@@ -470,4 +481,4 @@ PoC自体を無検証で進めないため、**V-1〜V-4 のテストは B-04 �
 
 ---
 
-_最終更新: 2026-07-25_
+_最終更新: 2026-07-26_
