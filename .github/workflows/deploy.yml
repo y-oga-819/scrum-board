@@ -28,7 +28,9 @@ jobs:
   deploy:
     name: Build & deploy to App Service
     runs-on: ubuntu-latest
-    environment: production
+    # GitHub の «environment» はあえて指定しない。指定すると OIDC トークンの sub が
+    # «repo:<owner>/<repo>:environment:<name>» になり、setup-github-oidc.sh が登録する
+    # «repo:<owner>/<repo>:ref:refs/heads/main» と食い違って azure/login が失敗するため。
     steps:
       - uses: actions/checkout@v4
 
