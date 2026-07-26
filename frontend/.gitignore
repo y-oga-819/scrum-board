@@ -41,3 +41,7 @@ __screenshots__/
 # System files
 .DS_Store
 Thumbs.db
+
+# OpenAPI 中間生成物（gen-types が backend の app.openapi() から書き出す一時ファイル）。
+# コミットするのは生成物 src/app/api/schema.d.ts のみ。
+/openapi.json

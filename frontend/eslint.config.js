@@ -6,7 +6,8 @@ const angular = require('angular-eslint');
 module.exports = tseslint.config(
   {
     // 生成物・ビルド成果物は Lint 対象外（node_modules は既定で無視される）。
-    ignores: ['dist/', 'coverage/', '.angular/', 'out-tsc/'],
+    // schema.d.ts は openapi-typescript の生成物（B-12）。手で直さないため Lint しない。
+    ignores: ['dist/', 'coverage/', '.angular/', 'out-tsc/', 'src/app/api/schema.d.ts'],
   },
   {
     files: ['**/*.ts'],
