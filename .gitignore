@@ -16,6 +16,7 @@ backend/.venv/
 frontend/coverage/
 backend/htmlcov/
 backend/coverage.xml
+backend/coverage.json
 .coverage
 .coverage.*
 
