@@ -6,6 +6,7 @@ HTTP からは切り離しておく（データ層は FastAPI を知らない）
 
   | 例外                     | HTTP | 意味                                   |
   |:-------------------------|:----:|:---------------------------------------|
+  | ReservedProductIdError   | 422  | 予約語を productId に使おうとした（``_system``） |
   | NotFoundError            | 404  | 存在しない／論理削除済み（存在を漏らさない） |
   | ConflictError            | 409  | ドメイン競合（id 重複など）             |
   | PreconditionFailedError  | 412  | 楽観排他の失敗（``If-Match`` 不一致）    |
@@ -19,6 +20,16 @@ class DataError(Exception):
     """データ層の例外の基底。"""
 
     http_status = 500
+
+
+class ReservedProductIdError(DataError):
+    """予約語（``_system``）を productId に払い出そうとした（D-21）。
+
+    マイグレーション（B-08）と将来のプロジェクト作成（B-32）が同じ関門で弾く。
+    ユーザー入力に由来する場合は D-20 の 422（バリデーション）に対応する。
+    """
+
+    http_status = 422
 
 
 class NotFoundError(DataError):

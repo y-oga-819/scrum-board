@@ -21,6 +21,7 @@ from fastapi.responses import FileResponse
 
 from .api import router as api_router
 from .config import spa_dist_dir
+from .data.migrations import run_migrations
 from .data.settings import build_repository, cosmos_settings_from_env, create_client
 
 logger = logging.getLogger(__name__)
@@ -44,9 +45,14 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
     application.state.repository = None
     if settings.is_configured:
         client = create_client(settings)
-        # ここでコンテナを冪等に用意する（B-07）。マイグレーションの適用（B-08）は
-        # この直後に足す予定の入り口。
-        application.state.repository = build_repository(client, settings)
+        # コンテナを冪等に用意し（B-07）、未適用のマイグレーションだけを順に適用する
+        # （B-08）。適用済みバージョンは _system に記録されるため、再デプロイでは何も
+        # 起きない（実データを設定値で上書きしない。D-21）。
+        repository = build_repository(client, settings)
+        application.state.repository = repository
+        applied = run_migrations(repository)
+        if applied:
+            logger.info("マイグレーションを適用しました: %s", ", ".join(applied))
         logger.info("Cosmos に接続しました（リポジトリを app.state に配置）。")
     else:
         logger.info("Cosmos 未構成のため DB 無しで起動します（M1 認証のみ）。")
