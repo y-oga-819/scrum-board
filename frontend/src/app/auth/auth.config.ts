@@ -109,8 +109,12 @@ export function msalGuardConfigFactory(): MsalGuardConfiguration {
  */
 export function msalInterceptorConfigFactory(): MsalInterceptorConfiguration {
   const protectedResourceMap = new Map<string, string[] | null>([
-    // 相対パス（同一オリジン）。ヘルスチェックを含む全 /api にトークンを付ける。
-    ['/api', [API_SCOPE]],
+    // 相対パス（同一オリジン）。ヘルスチェックを含む全 /api 配下にトークンを付ける。
+    //
+    // ⚠️ MSAL v5 系の既定 strict matching は pathname を完全一致（`^…$` でアンカー）で
+    // 判定するため、キー `'/api'` は `'/api/me'` に一致しない（トークンが付かず 401）。
+    // サブパスに効くようワイルドカードにする（`^/api/.*$` → `/api/me`・`/api/health`）。
+    ['/api/*', [API_SCOPE]],
   ]);
 
   return {
