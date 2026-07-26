@@ -52,13 +52,24 @@ def test_lifespan_creates_singleton_and_closes_on_shutdown(
     def fake_build_repository(_client: object, _settings: object) -> object:
         return sentinel_repo
 
+    # マイグレーション適用（B-08）は構成済みの起動で走る。実適用は test_migrations が
+    # 検証するので、ここでは「構築したリポジトリに対して1度呼ばれる」ことだけを見る。
+    migrated: list[object] = []
+
+    def fake_run_migrations(repository: object) -> list[str]:
+        migrated.append(repository)
+        return []
+
     monkeypatch.setattr(main, "create_client", fake_create_client)
     monkeypatch.setattr(main, "build_repository", fake_build_repository)
+    monkeypatch.setattr(main, "run_migrations", fake_run_migrations)
 
     with TestClient(main.app) as client:
         # クライアントは1個だけ生成され、リポジトリが app.state に載る。
         assert len(created) == 1
         assert main.app.state.repository is sentinel_repo
+        # 構築したリポジトリに対してマイグレーションが1度走る。
+        assert migrated == [sentinel_repo]
         assert client.get("/api/health").json()["status"] == "ok"
         assert closed == []  # 稼働中は閉じない
 
