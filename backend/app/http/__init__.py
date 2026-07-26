@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 from .handlers import install_error_handlers
+from .openapi import build_openapi, install_openapi, problem_responses
 from .preconditions import ETAG_HEADER, require_if_match, set_etag
 from .problems import (
     InvariantViolation,
@@ -34,7 +35,10 @@ __all__ = [
     "ProblemException",
     "ProblemResponse",
     "Violation",
+    "build_openapi",
     "install_error_handlers",
+    "install_openapi",
+    "problem_responses",
     "require_if_match",
     "set_etag",
 ]

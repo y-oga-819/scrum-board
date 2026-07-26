@@ -23,7 +23,7 @@ from .api import router as api_router
 from .config import spa_dist_dir
 from .data.migrations import run_migrations
 from .data.settings import build_repository, cosmos_settings_from_env, create_client
-from .http import install_error_handlers
+from .http import install_error_handlers, install_openapi
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +68,8 @@ app = FastAPI(title="Scrum Board", lifespan=lifespan)
 # すべてのエラー応答を RFC 9457 problem+json に揃える（B-12・D-20）。ルート登録より前に
 # 取り付け、既存の HTTPException / RequestValidationError ハンドラを上書きする。
 install_error_handlers(app)
+# OpenAPI に共通の Problem スキーマを載せる（フロントの型生成が拾う。D-20）。
+install_openapi(app)
 app.include_router(api_router)
 
 
