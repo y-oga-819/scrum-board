@@ -38,7 +38,7 @@
 
 | マイルストーン | 到達点 | PBI | 進捗 |
 |:---:|:---|:---|:---:|
-| **M1** | ★**1ページがEntra IDで保護される**（Easy Authなし） | B-01 〜 B-06 | 1 / 6 |
+| **M1** | ★**1ページがEntra IDで保護される**（Easy Authなし） | B-01 〜 B-06 | 2 / 6 |
 | **M2** | ★**認可まで通る**（非メンバーは403・初回サインインで自動参加） | B-07 〜 B-10 | 0 / 4 |
 | **M3** | 開発の土台（テスト/CI/API規約/リポジトリ規約） | B-11 〜 B-14 | 0 / 4 |
 | **M4** | プロダクトバックログが運用できる | B-15 〜 B-20 | 0 / 6 |
@@ -46,7 +46,7 @@
 | **M6** | デイリースクラムがこの画面だけで完結する | B-27 〜 B-29 | 0 / 3 |
 | **M7** | 実運用に耐える | B-30 〜 B-31 | 0 / 2 |
 | **M8** | *（将来）* プロジェクトを自分たちで管理できる | B-32 〜 B-33 | 0 / 2 |
-| | | **合計** | **1 / 33** |
+| | | **合計** | **2 / 33** |
 
 > ★ **本プロジェクトの主題は「Easy Authを使わないEntra IDの認証・認可」のPoC**であり、
 > スクラムアプリはそれを実地で回すための題材を兼ねている（D-21）。
@@ -152,16 +152,30 @@ PoC自体を無検証で進めないため、**V-1〜V-4 のテストは B-04 �
 - [x] **ユーザー解決がポートとして切り出されている**（`CurrentUserResolver`。テストは `dependency_overrides` で差し替え — D-21）
 - [x] サインイン後、**APIが検証した `oid` が画面に表示される**（`GET /api/me` → home の「API が検証した oid」）　※実サインインでの疎通は B-02 の実値待ち
 
-### ⬜ B-05 Azureリソースを用意する　`依存: —`
-- [ ] App Service F1 を作成
-- [ ] Cosmos DB **無料レベル**を明示的に選択して作成
-- [ ] **予算アラートを設定した**（Azureは自動の支出上限がない）
-- [ ] 手順が再実行可能な形で残っている
+### ✅ B-05 Azureリソースを用意する　`依存: —`
+> **実リソース作成まで完了（2026-07-26）。** 再実行可能な az CLI スクリプト
+> （[`scripts/setup/provision-azure.sh`](../scripts/setup/provision-azure.sh)）と
+> 手順書（[`docs/setup/azure-resources.md`](./setup/azure-resources.md)）で、App Service F1・
+> Cosmos DB 無料レベル・予算アラートを冪等に構築した。
+> 実構成: **App Service `scrum-board-yoga`（japanwest）/ Cosmos `cosmos-scrum-board`（japaneast）**。
+> 公開URL `https://scrum-board-yoga.azurewebsites.net`。
+> （japaneast は F1 の VM 枠 0、japanwest は Cosmos が容量不足だったため、リージョンを分けて回避。
+> スクリプトは `AZ_LOCATION` / `AZ_COSMOS_LOCATION` で個別指定できる。）
+- [x] App Service F1 を作成
+- [x] Cosmos DB **無料レベル**を明示的に選択して作成（`--enable-free-tier true`）
+- [x] **予算アラートを設定した**（Azureは自動の支出上限がない。50/80/100% 通知）
+- [x] 手順が再実行可能な形で残っている（az CLI 中心・冪等。GUI 限定部分だけ手順書で補足）
 
-### ⬜ B-06 デプロイパイプラインを通す　`依存: B-05, B-01`
-- [ ] main への push で App Service に自動デプロイされる
-- [ ] 公開URLで表示できる
-- [ ] **公開URLでもサインインが通る**（本番リダイレクトURIの確認）
+### 🟨 B-06 デプロイパイプラインを通す　`依存: B-05, B-01`
+> **ワークフロー・OIDC 設定スクリプトは用意済み。** main への push で SPA ビルド → 依存書き出し
+> → 単一パッケージで App Service へ zip デプロイする
+> （[`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml)）。認証は**シークレットレス
+> （OIDC）**で、[`scripts/setup/setup-github-oidc.sh`](../scripts/setup/setup-github-oidc.sh) が
+> リソースグループ限定の権限まで設定する。**実デプロイは B-05 の実行と GitHub Variables
+> 登録の後**（手順は [`docs/setup/deploy.md`](./setup/deploy.md)）。
+- [ ] main への push で App Service に自動デプロイされる　※ワークフロー実装済み・B-05実行と変数登録待ち
+- [ ] 公開URLで表示できる　※スモークテスト（/api/health）まで組み込み済み・実デプロイ待ち
+- [ ] **公開URLでもサインインが通る**（本番リダイレクトURIの確認）　※B-02の実値・本番SPAリダイレクトURI登録待ち
 
 ---
 
@@ -475,4 +489,4 @@ PoC自体を無検証で進めないため、**V-1〜V-4 のテストは B-04 �
 
 ---
 
-_最終更新: 2026-07-25_
+_最終更新: 2026-07-26_
