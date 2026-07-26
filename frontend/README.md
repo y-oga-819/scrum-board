@@ -54,7 +54,8 @@ npm run e2e          # ルートからは `make test-e2e`
 
 主要フロー5本の受け皿はあるが、**対象画面（M4/M5）が実装されるまで各フローは
 `test.fixme` で skip される**。画面ができた PBI で `test.fixme` を外して本体を
-埋める。CI では分単位のコストを避けるため **main マージ時だけ**回す。
+埋める。CI は **毎 PR**（別ワークフロー `.github/workflows/e2e.yml`）で回す
+— main への push でデプロイするため、動作確認はマージ前に済ませる。
 
 ## 参考
 

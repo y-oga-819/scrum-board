@@ -14,14 +14,16 @@ CI は毎 PR で lint・型チェック・テストを走らせる（[`.github/w
 | `Backend (ruff / mypy / pytest)` | 毎 PR | ✅ 必須 |
 | `Frontend (eslint / tsc / vitest)` | 毎 PR | ✅ 必須 |
 | `Backend Cosmos contract (層3 / emulator)` | 毎 PR | ⚠️ 下記参照 |
-| `E2E (Playwright)` | main への push | ✅ 必須（別ワークフロー [`e2e.yml`](../../.github/workflows/e2e.yml)。main でのみ走る） |
+| `E2E (Playwright)` | 毎 PR | ✅ 必須（別ワークフロー [`e2e.yml`](../../.github/workflows/e2e.yml)） |
 
 - **層3（Cosmos 契約）**: エミュレータ起動を伴い、実行時間と安定性の当たりが
   読めない。**まずは非必須で回して緑の安定を確認し、安定したら必須へ昇格**する。
   D-19 は「毎 PR で回す」としているが、必須化はフレークが無いことを見てから。
-- **E2E** は毎 PR には載せず main で走る設計（層4は分単位）。現時点では主要フロー
-  5本が `test.fixme`（対象画面が M4/M5 で実装されるまで skip）なので、実質的な
-  ゲートになるのは画面が揃ってから。
+- **E2E** は **毎 PR で走らせマージ前のゲートにする**。このリポジトリは main への
+  push でデプロイする（`deploy.yml`）ため、E2E を main（＝マージ後）で回すと
+  「壊れたものをデプロイしてから気づく」ことになりゲートにならない。動作確認は
+  マージ前に済ませる。現時点では主要フロー5本が `test.fixme`（対象画面が M4/M5 で
+  実装されるまで skip）なので、実質的なゲートになるのは画面が揃ってから。
 
 ## 設定手順（管理者・一度だけ）
 

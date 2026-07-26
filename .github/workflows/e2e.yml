@@ -1,14 +1,19 @@
 name: E2E
 
-# 層4（Playwright）。単体・契約テスト（ci.yml）とは走るタイミングもゲート対象も
-# 違うのでワークフローを分ける。分単位で重いため**毎PRには載せず、main への push
-# （＝マージ時）だけ**回す（D-19 の CI 構成）。フローを有効化した直後の確認用に
-# 手動実行（workflow_dispatch）も用意する。
+# 層4（Playwright）。重いスイートなので単体・契約テスト（ci.yml）とは
+# ワークフローを分けるが、**トリガーは PR** にする。
+#
+# なぜ main ではなく PR か: このリポジトリは **main への push でデプロイ**する
+# （deploy.yml）。E2E を main（＝マージ後）で回すと「壊れたものをデプロイして
+# から気づく」ことになり、ゲートとして機能しない。動作確認は**マージ前**に済ませる。
+# ブランチ保護で必須チェックにして初めて gate になる（docs/setup/ci-branch-protection.md）。
+# D-19 の当初案（main マージ時）からの変更で、理由は D-19 の CI 構成メモに追記した。
 #
 # 各フローは対象画面（M4/M5）が実装されるまで test.fixme で skip される。
+# 必須チェックにするため paths フィルタは付けない（フィルタで skip されると必須
+# チェックが永久に報告されずマージ不能になるため）。
 on:
-  push:
-    branches: [main]
+  pull_request:
   workflow_dispatch:
 
 permissions:
