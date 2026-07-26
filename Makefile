@@ -59,10 +59,10 @@ test: test-backend test-frontend ## Run all tests
 test-backend: ## Run backend (pytest) tests
 	cd $(BACKEND_DIR) && uv run pytest
 
-test-frontend: ## Run frontend (Karma/Jasmine) tests headlessly
-	# ChromeHeadlessNoSandbox is provided by the Angular builder; --no-sandbox is
-	# required when running as root (CI / web sessions).
-	cd $(FRONTEND_DIR) && npm test -- --watch=false --browsers=ChromeHeadlessNoSandbox
+test-frontend: ## Run frontend (Vitest, jsdom) tests headlessly
+	# Vitest runs on jsdom (no real browser), so nothing browser-specific is needed
+	# and CI stays stable. See D-19; Karma/Jasmine was retired in B-11.
+	cd $(FRONTEND_DIR) && npm test
 
 ## ---- lint / typecheck -------------------------------------------------------
 
@@ -89,7 +89,7 @@ coverage: coverage-backend coverage-frontend ## Run all tests with coverage repo
 coverage-backend: ## Backend coverage (term + HTML in backend/htmlcov)
 	cd $(BACKEND_DIR) && uv run pytest --cov-report=html
 
-coverage-frontend: ## Frontend coverage (term + HTML in frontend/coverage)
+coverage-frontend: ## Frontend coverage (text-summary + HTML in frontend/coverage)
 	cd $(FRONTEND_DIR) && npm run coverage
 
 ## ---- clean ------------------------------------------------------------------

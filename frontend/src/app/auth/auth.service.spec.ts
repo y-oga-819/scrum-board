@@ -35,17 +35,15 @@ function setup(options: SetupOptions = {}) {
   const instance = {
     getActiveAccount: () => active,
     getAllAccounts: () => allAccounts,
-    setActiveAccount: jasmine.createSpy('setActiveAccount').and.callFake((a: AccountInfo) => {
+    setActiveAccount: vi.fn((a: AccountInfo) => {
       active = a;
     }),
   };
   const msal = {
     instance,
-    handleRedirectObservable: jasmine
-      .createSpy('handleRedirectObservable')
-      .and.returnValue(of(null)),
-    ssoSilent: jasmine.createSpy('ssoSilent').and.returnValue(ssoSilent$),
-    logoutRedirect: jasmine.createSpy('logoutRedirect'),
+    handleRedirectObservable: vi.fn(() => of(null)),
+    ssoSilent: vi.fn(() => ssoSilent$),
+    logoutRedirect: vi.fn(),
   };
   const broadcast = {
     msalSubject$: new Subject(),
@@ -66,14 +64,14 @@ describe('AuthService', () => {
   it('reports not authenticated when there is no account', () => {
     const { service } = setup();
     service.handleRedirect().subscribe();
-    expect(service.isAuthenticated()).toBeFalse();
+    expect(service.isAuthenticated()).toBe(false);
     expect(service.displayName()).toBe('');
   });
 
   it('adopts the only cached account and exposes its display name', () => {
     const { service, instance } = setup({ allAccounts: [account] });
     service.handleRedirect().subscribe();
-    expect(service.isAuthenticated()).toBeTrue();
+    expect(service.isAuthenticated()).toBe(true);
     expect(service.displayName()).toBe('テスト ユーザー');
     // アクティブ未設定でも1件あれば採用してアクティブ化する。
     expect(instance.setActiveAccount).toHaveBeenCalledWith(account);
@@ -92,7 +90,7 @@ describe('AuthService', () => {
       service.restoreSession();
       expect(msal.ssoSilent).not.toHaveBeenCalled();
       expect(instance.setActiveAccount).toHaveBeenCalledWith(account);
-      expect(service.isAuthenticated()).toBeTrue();
+      expect(service.isAuthenticated()).toBe(true);
     });
 
     it('signs in silently when no account is cached', () => {
@@ -103,12 +101,15 @@ describe('AuthService', () => {
       service.restoreSession();
       expect(msal.ssoSilent).toHaveBeenCalled();
       expect(instance.setActiveAccount).toHaveBeenCalledWith(account);
-      expect(service.isAuthenticated()).toBeTrue();
+      expect(service.isAuthenticated()).toBe(true);
       expect(service.displayName()).toBe('テスト ユーザー');
     });
 
     it('stays signed out when ssoSilent needs interaction (no error thrown)', () => {
-      const consoleError = spyOn(console, 'error');
+      // vi.spyOn は既定で本物を呼ぶため、テスト中の console.error は握りつぶす（jasmine の spyOn 相当）。
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {
+        /* 出力を抑止するだけ */
+      });
       const { service } = setup({
         allAccounts: [],
         ssoSilent$: throwError(
@@ -116,7 +117,7 @@ describe('AuthService', () => {
         ),
       });
       expect(() => service.restoreSession()).not.toThrow();
-      expect(service.isAuthenticated()).toBeFalse();
+      expect(service.isAuthenticated()).toBe(false);
       // 対話が必要なだけなので、これはエラーログを出さずに握りつぶす。
       expect(consoleError).not.toHaveBeenCalled();
     });

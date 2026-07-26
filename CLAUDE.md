@@ -10,7 +10,7 @@
 
 ```bash
 make dev         # フロント + バックエンドを同時起動（開発）
-make test        # 全テスト（pytest + Karma/Jasmine）
+make test        # 全テスト（pytest + Vitest）
 make lint        # 全 Lint（ruff / ESLint）
 make typecheck   # 全型チェック（mypy / tsc）
 make build       # 本番相当の SPA バンドルをビルド

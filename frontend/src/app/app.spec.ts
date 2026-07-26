@@ -7,10 +7,10 @@ import { AuthService } from './auth/auth.service';
 
 /** MSAL に触れずに App を検証するためのスタブ。 */
 class AuthServiceStub {
-  handleRedirect = jasmine.createSpy('handleRedirect').and.returnValue(of(null));
-  restoreSession = jasmine.createSpy('restoreSession');
+  handleRedirect = vi.fn(() => of(null));
+  restoreSession = vi.fn();
   displayName = () => 'テスト ユーザー';
-  logout = jasmine.createSpy('logout');
+  logout = vi.fn();
 }
 
 describe('App', () => {

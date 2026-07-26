@@ -78,7 +78,7 @@ jobs:
           path: backend/coverage-summary.md
 
   frontend:
-    name: Frontend (eslint / tsc / karma)
+    name: Frontend (eslint / tsc / vitest)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -102,31 +102,26 @@ jobs:
       - name: Type check (tsc)
         run: npm run typecheck
 
-      # ChromeHeadlessNoSandbox は Angular ビルダー組み込みのランチャー。
-      # root で動く CI では --no-sandbox が必要になる。
-      # Chrome は ubuntu-latest ランナーにプリインストールされている。
-      # text-summary はコンソールに出るので tee で控えておき、後で解析する。
-      - name: Test (Karma/Jasmine + coverage)
-        run: |
-          npm test -- --watch=false --browsers=ChromeHeadlessNoSandbox --code-coverage \
-            2>&1 | tee karma-output.txt
+      # Vitest は jsdom 上で走る（実ブラウザ不要）。code-coverage で
+      # coverage/coverage-summary.json（json-summary）と HTML を出力する（angular.json で設定）。
+      - name: Test (Vitest + coverage)
+        run: npm run coverage
 
-      # Karma の text-summary 出力から PR コメント用の Markdown 断片を作る。
+      # coverage-summary.json から PR コメント用の Markdown 断片を作る（backend と同じ形）。
       - name: Build coverage summary
         if: always()
         run: |
-          sed -r 's/\x1b\[[0-9;]*m//g' karma-output.txt > karma-clean.txt
-          pct() { grep -E "^$1" karma-clean.txt | grep -oE '[0-9.]+%' | head -1; }
-          {
-            echo "### Frontend (Karma)"
-            echo
-            echo "| Metric | Coverage |"
-            echo "| --- | --- |"
-            echo "| Statements | $(pct Statements) |"
-            echo "| Branches | $(pct Branches) |"
-            echo "| Functions | $(pct Functions) |"
-            echo "| Lines | $(pct Lines) |"
-          } > coverage-summary.md
+          node - <<'JS' > coverage-summary.md
+          const t = require('./coverage/coverage-summary.json').total;
+          const row = (m) => `| ${m[0]} | ${m[1].pct}% (${m[1].covered}/${m[1].total}) |`;
+          console.log('### Frontend (Vitest)\n');
+          console.log('| Metric | Coverage |');
+          console.log('| --- | --- |');
+          for (const m of [['Statements', t.statements], ['Branches', t.branches],
+                           ['Functions', t.functions], ['Lines', t.lines]]) {
+            console.log(row(m));
+          }
+          JS
 
       - name: Upload coverage report
         if: always()

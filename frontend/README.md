@@ -34,12 +34,13 @@ FastAPI はこのディレクトリを配信する。
 
 ## ユニットテスト
 
-[Karma](https://karma-runner.github.io) で実行する。
+[Vitest](https://vitest.dev) で実行する（Angular の `@angular/build:unit-test`
+ビルダー経由・D-19）。既定は **jsdom** 上で走り実ブラウザを起動しないため、CI が
+安定し `--no-sandbox` のような回避策も要らない。
 
 ```bash
-ng test
-# ルート実行（root/CI ではサンドボックス無効化が必要）:
-#   make test-frontend   → --browsers=ChromeHeadlessNoSandbox で起動
+ng test              # ルートからは `make test-frontend`
+ng test --code-coverage   # ルートからは `make coverage-frontend`
 ```
 
 ## E2E テスト

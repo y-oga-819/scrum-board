@@ -7,9 +7,9 @@ import { ProductSummary } from '../products/product.service';
 
 /** MSAL に触れずに HomePage を検証するためのスタブ。 */
 class AuthServiceStub {
-  handleRedirect = jasmine.createSpy('handleRedirect');
+  handleRedirect = vi.fn();
   displayName = () => 'テスト ユーザー';
-  logout = jasmine.createSpy('logout');
+  logout = vi.fn();
 }
 
 interface MeBody {

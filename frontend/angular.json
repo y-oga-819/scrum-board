@@ -79,22 +79,18 @@
           "builder": "@angular/build:extract-i18n"
         },
         "test": {
-          "builder": "@angular/build:karma",
+          "builder": "@angular/build:unit-test",
           "options": {
-            "polyfills": [
-              "zone.js",
-              "zone.js/testing"
-            ],
+            "buildTarget": "frontend:build",
             "tsConfig": "tsconfig.spec.json",
-            "inlineStyleLanguage": "scss",
-            "assets": [
-              {
-                "glob": "**/*",
-                "input": "public"
-              }
+            "runner": "vitest",
+            "codeCoverageExclude": [
+              "**/chunk-*.js"
             ],
-            "styles": [
-              "src/styles.scss"
+            "codeCoverageReporters": [
+              "text-summary",
+              "html",
+              "json-summary"
             ]
           }
         }
