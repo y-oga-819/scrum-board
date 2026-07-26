@@ -38,7 +38,7 @@
 
 | マイルストーン | 到達点 | PBI | 進捗 |
 |:---:|:---|:---|:---:|
-| **M1** | ★**1ページがEntra IDで保護される**（Easy Authなし） | B-01 〜 B-06 | 2 / 6 |
+| **M1** | ★**1ページがEntra IDで保護される**（Easy Authなし） | B-01 〜 B-06 | ✅ **6 / 6** |
 | **M2** | ★**認可まで通る**（非メンバーは403・初回サインインで自動参加） | B-07 〜 B-10 | 0 / 4 |
 | **M3** | 開発の土台（テスト/CI/API規約/リポジトリ規約） | B-11 〜 B-14 | 0 / 4 |
 | **M4** | プロダクトバックログが運用できる | B-15 〜 B-20 | 0 / 6 |
@@ -46,7 +46,7 @@
 | **M6** | デイリースクラムがこの画面だけで完結する | B-27 〜 B-29 | 0 / 3 |
 | **M7** | 実運用に耐える | B-30 〜 B-31 | 0 / 2 |
 | **M8** | *（将来）* プロジェクトを自分たちで管理できる | B-32 〜 B-33 | 0 / 2 |
-| | | **合計** | **2 / 33** |
+| | | **合計** | **6 / 33** |
 
 > ★ **本プロジェクトの主題は「Easy Authを使わないEntra IDの認証・認可」のPoC**であり、
 > スクラムアプリはそれを実地で回すための題材を兼ねている（D-21）。
@@ -99,8 +99,12 @@ PoC自体を無検証で進めないため、**V-1〜V-4 のテストは B-04 �
 
 ---
 
-## M1 — 1ページがEntra IDで保護される ★PoCの核心
+## M1 — 1ページがEntra IDで保護される ★PoCの核心　✅ 達成（2026-07-26）
 
+> 🎉 **M1 達成。** 公開URL `https://scrum-board-yoga.azurewebsites.net` で、Easy Auth を使わず
+> Entra ID のサインイン → MSAL がアクセストークンを付与 → API が検証（V-1〜V-4）→ 画面に `oid` 表示、
+> まで**端から端まで疎通**した。**認証 PoC は点灯済み。** 次は M2（認可）で PoC を完成させる。
+>
 > ★**本プロジェクトの主題。** 認証はデータ層を必要としないため、ここまでCosmosもマイグレーションも要らない。
 > ローカル（`localhost:4200`）で検証してから、B-05/B-06 でデプロイし公開URLでも確認する。
 
@@ -110,38 +114,37 @@ PoC自体を無検証で進めないため、**V-1〜V-4 のテストは B-04 �
 - [x] ローカルで1コマンド起動できる（`make run` = ビルド＋配信 / `make dev` = ライブリロード）
 - [x] **画面が1ページ表示される**（`/` にランディングページ。`/api/health` の疎通も表示）
 
-### 🟨 B-02 Entra IDにアプリを登録する　`依存: —`
-> **手順書を用意した** → [`docs/setup/entra-app-registration.md`](./setup/entra-app-registration.md)
-> ＋ [`scripts/setup/register-entra-app.sh`](../scripts/setup/register-entra-app.sh)（冪等な az CLI スクリプト）。
-> 残りは**実テナントでスクリプトを流し、§4 の手動ステップ（ユーザー割り当て等）を終える**こと。
-> スクリプトが下の各項目を自動化しているので、実行後に §6 のチェックリストで確認する。
+### ✅ B-02 Entra IDにアプリを登録する　`依存: —`
+> **実テナントで登録完了（2026-07-26）。** 公開URLでのサインインが端から端まで通り
+> （B-03/B-04）、下の各項目は実疎通で裏取りできた。`accessTokenVersion: 2`・
+> `access_as_user` スコープ・`api://<clientId>` は `az ad app show` でも確認済み。
+> 手順書 [`docs/setup/entra-app-registration.md`](./setup/entra-app-registration.md)＋
+> [`scripts/setup/register-entra-app.sh`](../scripts/setup/register-entra-app.sh) で再実行可能。
 
-- [ ] 提案書 08章のチェックリスト全項目が完了（スクリプト実行＋§4 手動ステップで満たす）
-- [ ] プラットフォーム = **シングルページアプリケーション**（`Web`にしない → `AADSTS9002326`回避）
-- [ ] スコープ `api://<clientId>/access_as_user` を公開
-- [ ] マニフェスト `requestedAccessTokenVersion: 2`
-- [ ] リダイレクトURI 3種を登録（本番SPA / `localhost:4200` / Easy Auth保険）
-- [ ] テナントID・クライアントIDを控えた
-- [x] **手順が再実行可能な形（az CLI中心）で残っている** ← 手順書とスクリプトで達成
+- [x] 提案書 08章のチェックリスト全項目が完了
+- [x] プラットフォーム = **シングルページアプリケーション**（`AADSTS9002326` は出ていない）
+- [x] スコープ `api://<clientId>/access_as_user` を公開
+- [x] マニフェスト `requestedAccessTokenVersion: 2`
+- [x] リダイレクトURI を登録（本番SPA `https://scrum-board-yoga.azurewebsites.net` / `localhost:4200`）
+- [x] テナントID・クライアントIDを控えた
+- [x] **手順が再実行可能な形（az CLI中心）で残っている**
 
-### 🟨 B-03 フロントエンドのサインイン　`依存: B-02, B-01`
-> **実装は完了。端から端までの疎通確認（実際にサインインが通ること）だけが B-02 待ち。**
-> `frontend/src/environments/environment.ts` の `clientId` / `tenantId` は
-> プレースホルダで、**B-02 が発行する実値に差し替えると即サインインが通る**。
-> それまでもビルド・単体テスト（`make test-frontend`）で配線は検証できる。
-> B-02 と並行して進めるための構成（同一アプリ登録・リダイレクトURIは origin から導出）。
-- [x] MSAL でサインインできる（`@azure/msal-angular` を配線。リダイレクト方式・PKCE）　※実疎通は B-02 の実値待ち
+### ✅ B-03 フロントエンドのサインイン　`依存: B-02, B-01`
+> **完了（2026-07-26）。公開URLで実際にサインインが通ることを確認済み。**
+> `environment.ts` に B-02 の実値を設定し、`protectedResourceMap` を `/api/*` に修正して
+> （MSAL v5 の strict matching 対策）API へトークンが載ることを実機で確認した。
+- [x] MSAL でサインインできる（`@azure/msal-angular` を配線。リダイレクト方式・PKCE）　※公開URLで実疎通確認済み
 - [x] **未認証ユーザーはルートガードで弾かれる**（`MsalGuard` を唯一のルート `''` に適用）
 - [x] ローカルでも本番と同じ経路で動く（**Easy Auth に依存しない** — D-10。`redirectUri` を `window.location.origin` から導出）
 - [x] `/api/*` への発信に Bearer アクセストークンを付与（`MsalInterceptor`。→ B-04 と対になる）
 - [x] サインイン状態を `AuthService` の1か所に集約（画面は MSAL を直接触らない・テスト差し替え可能）
 - [x] タブを開き直したときのサインイン状態の**無音復元**（`ssoSilent`）。トークンは `sessionStorage` 限定のまま、復元は Entra 側のブラウザセッションに委ねる（有効期間は組織の Entra ポリシー次第）
 
-### 🟨 B-04 APIのトークン検証　`依存: B-02, B-01`
-> **実装は完了。** トークン検証（V-1〜V-4）・ユーザー解決ポート・`GET /api/me`・
-> フロントの oid 表示まで配線し、テスト鍵ペア＋JWKSスタブで検証済み
-> （`make test-backend` / `make test-frontend`）。**実 Entra トークンでの端から端まで
-> （実際のサインインで oid が出ること）だけが B-02 の実値待ち**（B-03 と同じ理由）。
+### ✅ B-04 APIのトークン検証　`依存: B-02, B-01`
+> **完了（2026-07-26）。実 Entra トークンで端から端まで疎通確認済み**
+> （公開URLでサインイン → `GET /api/me` が検証した `oid` を画面に表示）。
+> トークン検証（V-1〜V-4）・ユーザー解決ポート・`GET /api/me` を配線し、テスト鍵ペア＋
+> JWKSスタブでも検証済み（`make test-backend` / `make test-frontend`）。
 > 所属プロダクト一覧を含む完全な `/api/me`（D-21）はデータ層が要るため B-10 で足す。
 - [x] V-1 署名検証（JWKSの公開鍵でRS256・鍵はキャッシュ）　`app/auth/jwks.py`・`token.py`
 - [x] V-2 `aud` がクライアントIDと一致　`app/auth/token.py`（`jwt.decode(audience=…)`）
@@ -150,7 +153,7 @@ PoC自体を無検証で進めないため、**V-1〜V-4 のテストは B-04 �
 - [x] 改ざんトークンで 401 を返す（`InvalidTokenError → 401` + `WWW-Authenticate: Bearer`）
 - [x] **V-1〜V-4 のテストが書かれている**（`tests/auth/`。実テナントに繋がずテスト鍵で検証。B-11 を待たない）
 - [x] **ユーザー解決がポートとして切り出されている**（`CurrentUserResolver`。テストは `dependency_overrides` で差し替え — D-21）
-- [x] サインイン後、**APIが検証した `oid` が画面に表示される**（`GET /api/me` → home の「API が検証した oid」）　※実サインインでの疎通は B-02 の実値待ち
+- [x] サインイン後、**APIが検証した `oid` が画面に表示される**（`GET /api/me` → home の「API が検証した oid」）　※公開URLで実疎通確認済み
 
 ### ✅ B-05 Azureリソースを用意する　`依存: —`
 > **実リソース作成まで完了（2026-07-26）。** 再実行可能な az CLI スクリプト
@@ -166,16 +169,22 @@ PoC自体を無検証で進めないため、**V-1〜V-4 のテストは B-04 �
 - [x] **予算アラートを設定した**（Azureは自動の支出上限がない。50/80/100% 通知）
 - [x] 手順が再実行可能な形で残っている（az CLI 中心・冪等。GUI 限定部分だけ手順書で補足）
 
-### 🟨 B-06 デプロイパイプラインを通す　`依存: B-05, B-01`
-> **ワークフロー・OIDC 設定スクリプトは用意済み。** main への push で SPA ビルド → 依存書き出し
-> → 単一パッケージで App Service へ zip デプロイする
-> （[`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml)）。認証は**シークレットレス
-> （OIDC）**で、[`scripts/setup/setup-github-oidc.sh`](../scripts/setup/setup-github-oidc.sh) が
-> リソースグループ限定の権限まで設定する。**実デプロイは B-05 の実行と GitHub Variables
-> 登録の後**（手順は [`docs/setup/deploy.md`](./setup/deploy.md)）。
-- [ ] main への push で App Service に自動デプロイされる　※ワークフロー実装済み・B-05実行と変数登録待ち
-- [ ] 公開URLで表示できる　※スモークテスト（/api/health）まで組み込み済み・実デプロイ待ち
-- [ ] **公開URLでもサインインが通る**（本番リダイレクトURIの確認）　※B-02の実値・本番SPAリダイレクトURI登録待ち
+### ✅ B-06 デプロイパイプラインを通す　`依存: B-05, B-01`
+> **完了（2026-07-26）。公開URLで動作確認済み。** main への push で SPA ビルド → 依存書き出し
+> → 単一パッケージで App Service へ zip デプロイ（[`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml)）。
+> 認証は**シークレットレス（OIDC）**（[`scripts/setup/setup-github-oidc.sh`](../scripts/setup/setup-github-oidc.sh)）。
+> 手順は [`docs/setup/deploy.md`](./setup/deploy.md)。
+>
+> 立ち上げ時に潰した実地の壁（記録）: OIDC の subject が ID 入り形式（FIC を実 subject に合わせて追加）／
+> Oryx が成果物を `output.tar.zst` に圧縮するため SPA は app からの相対解決に変更／
+> フロントの Entra 実値をビルド時に埋め込む／`protectedResourceMap` を `/api/*`（MSAL v5 strict matching）。
+>
+> ⚠️ **現在プランは B1**（Basic）。当初 F1 で日次クォータ超過（`QuotaExceeded`）になり、検証を通すため
+> スケールアップした（$100 クレジット内。1週間 B1 ≈ $3）。日次クォータがリセットされた後に
+> `az appservice plan update --sku F1` で F1 へ戻せる（B-31 の実測時に判断）。
+- [x] main への push で App Service に自動デプロイされる
+- [x] 公開URLで表示できる（`/api/health` スモークテストも緑）
+- [x] **公開URLでもサインインが通る**（本番リダイレクトURI確認・oid 表示まで到達）
 
 ---
 
