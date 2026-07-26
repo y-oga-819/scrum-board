@@ -63,6 +63,19 @@ def is_member(repo: Repository, *, product_id: str, oid: str) -> bool:
     return get_member(repo, product_id=product_id, oid=oid) is not None
 
 
+def memberships_for_user(repo: Repository, oid: str) -> list[Document]:
+    """``oid`` が属するすべてのプロダクトの ``member`` を横断で集める（B-10）。
+
+    member は所属先の productId パーティションに散らばるため、**クロスパーティション
+    クエリ**でしか集められない。``GET /api/me`` の所属一覧に使う（セッション開始時に
+    一度きり・小件数）。認可の点判定にはこれを使わない — それは ``mbr_<oid>`` の
+    ポイントリードで済ませる（D-21）。
+    """
+    return repo.query_across_partitions(
+        doc_type=DocumentType.MEMBER, equals={"userId": oid}
+    )
+
+
 def create_member(
     repo: Repository,
     *,
