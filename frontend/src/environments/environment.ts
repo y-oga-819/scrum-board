@@ -8,10 +8,10 @@
  * ので、この1ファイルで足りる（提案書 08章のリダイレクトURI 3種のうち、
  * 本番SPA と localhost の2つがこれで自動的に切り替わる）。
  *
- * ⚠️ 下の `clientId` / `tenantId` は **B-02（Entra ID にアプリを登録する）が発行する
- * 実値に差し替える**。差し替えるまではサインインは実際には通らない（PoC の
- * 端から端までの疎通確認は B-02 完了後）。それまでも本 PBI の実装（MSAL 配線・
- * ルートガード・トークン付与）はビルド・単体テストで検証できる。
+ * `clientId` / `tenantId` には **B-02（Entra ID にアプリを登録する）が発行した実値**が
+ * 入っている。これらは秘密情報ではない — MSAL の仕組み上 SPA バンドルに埋め込まれ、
+ * ブラウザから見える公開値である（アクセスを守るのは署名・aud・iss・scp の検証であって
+ * この ID の秘匿ではない）。そのためリポジトリに直接置いてよい。
  */
 export interface AppEnvironment {
   readonly production: boolean;
@@ -23,13 +23,14 @@ export interface AppEnvironment {
   };
 }
 
-/** B-02 の実値に差し替えるまでのプレースホルダ。 */
+/** 未設定検知（ログ用途）のためのプレースホルダ。実値が入った今は一致しない。 */
 export const ENTRA_PLACEHOLDER = 'REPLACE_WITH_ENTRA_VALUE_FROM_B-02';
 
 export const environment: AppEnvironment = {
   production: true,
   auth: {
-    clientId: ENTRA_PLACEHOLDER,
-    tenantId: ENTRA_PLACEHOLDER,
+    // B-02 で発行した実値（単一アプリ登録を localhost と本番で共有）。公開値。
+    clientId: 'dd05674f-075b-4468-be25-83e890670078',
+    tenantId: '075f0018-3389-43f4-9bae-fe99eb51040a',
   },
 };
