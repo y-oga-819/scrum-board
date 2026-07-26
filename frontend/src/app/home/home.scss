@@ -58,9 +58,42 @@ code {
   font-size: 0.85em;
 }
 
-.status {
+.product-selector {
   display: flex;
   gap: 0.5rem;
+  align-items: center;
+  justify-content: center;
+  margin: 0 0 1.75rem;
+
+  label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #4a4f57;
+  }
+
+  select {
+    font: inherit;
+    font-size: 0.9rem;
+    padding: 0.4rem 0.6rem;
+    color: #1f2328;
+    background: #fff;
+    border: 1px solid #d0d3d9;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+}
+
+.no-products {
+  margin: 0 0 1.75rem;
+  color: #6b7079;
+  font-size: 0.9rem;
+  line-height: 1.7;
+}
+
+.status {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 0.35rem 0.75rem;
   justify-content: center;
   align-items: baseline;
   margin: 0;
@@ -70,12 +103,14 @@ code {
   dt {
     font-weight: 600;
     color: #4a4f57;
+    text-align: right;
   }
 
   dd {
     margin: 0;
     color: #1f883d;
     font-variant-numeric: tabular-nums;
+    text-align: left;
   }
 }
 

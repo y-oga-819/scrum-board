@@ -10,11 +10,31 @@
       未認証ユーザーはルートガードで弾かれます。
     </p>
 
+    @if (hasProducts()) {
+      <div class="product-selector">
+        <label for="product">プロダクト</label>
+        <select id="product" (change)="onSelectProduct($event)">
+          @for (p of productList(); track p.productId) {
+            <option [value]="p.productId" [selected]="p.productId === selectedProductId()">
+              {{ p.name }}（{{ p.role }}）
+            </option>
+          }
+        </select>
+      </div>
+    } @else {
+      <p class="no-products">
+        どのプロダクトにも属していません。<br />
+        管理者に本番プロジェクトへの招待を依頼してください（PBI <code>B-10</code>）。
+      </p>
+    }
+
     <dl class="status">
       <dt>API</dt>
       <dd>{{ apiStatus() }}</dd>
       <dt>API が検証した oid</dt>
       <dd class="oid">{{ verifiedOid() }}</dd>
+      <dt>選択中のプロダクト</dt>
+      <dd class="selected-product">{{ selectedProductId() || '（所属なし）' }}</dd>
     </dl>
 
     <button type="button" class="signout" (click)="signOut()">サインアウト</button>
