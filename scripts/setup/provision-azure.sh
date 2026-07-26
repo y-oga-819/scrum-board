@@ -138,14 +138,17 @@ az webapp config set \
 
 # アプリ設定:
 #   SCM_DO_BUILD_DURING_DEPLOYMENT=true  … Oryx が requirements.txt から依存を入れる
-#   SPA_DIST_DIR                          … 同梱した Angular ビルド成果物の場所（config.py が読む）
 #   ENTRA_TENANT_ID / ENTRA_CLIENT_ID     … B-02 の実値。トークン検証に使う（auth/settings.py）
+#
+# SPA_DIST_DIR は**あえて設定しない**。Oryx はビルド成果物を output.tar.zst に圧縮し、
+# 起動時に動的なテンポラリ領域へ展開して実行するため、/home/site/wwwroot/spa/browser の
+# ような固定の絶対パスは的を外す。config.py が app パッケージからの相対で spa/browser を
+# 見つける（deploy.yml が app/ と spa/ を隣同士で同梱している）。
 az webapp config appsettings set \
   --name "${WEBAPP_NAME}" \
   --resource-group "${RESOURCE_GROUP}" \
   --settings \
     SCM_DO_BUILD_DURING_DEPLOYMENT=true \
-    SPA_DIST_DIR=/home/site/wwwroot/spa/browser \
     ENTRA_TENANT_ID="${ENTRA_TENANT_ID}" \
     ENTRA_CLIENT_ID="${ENTRA_CLIENT_ID}" \
   --output none

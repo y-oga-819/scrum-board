@@ -54,8 +54,15 @@ AZ_RESOURCE_GROUP=rg-scrum-board AZ_WEBAPP_NAME=scrum-board-yoga \
 wwwroot/
 ├── app/               アプリ本体（startup の app.main:app が指す）
 ├── requirements.txt   Oryx が依存をインストール
-└── spa/browser/       SPA 成果物（SPA_DIST_DIR が指す）
+└── spa/browser/       SPA 成果物（app パッケージの隣。config.py が相対で探す）
 ```
+
+> ⚠️ App Service（Linux / Python）は Oryx ビルドの成果物を `output.tar.zst` に圧縮し、
+> **起動時に動的なテンポラリ領域へ展開**して実行する。そのため
+> `/home/site/wwwroot/spa/browser` のような固定の絶対パスを `SPA_DIST_DIR` に入れると
+> 的を外す（展開先に無い）。`app/config.py` は **app パッケージからの相対**で `spa/browser`
+> を解決するので、`SPA_DIST_DIR` は設定しない（設定しても index.html が無ければ相対解決に
+> フォールバックする）。
 
 起動コマンド（B-05 で設定済み）:
 
@@ -74,6 +81,9 @@ gunicorn app.main:app --worker-class uvicorn.workers.UvicornWorker \
 
 - **サインインで `AADSTS9002326`**: Entra 側で本番 SPA を **SPA プラットフォーム**に
   登録できていない。`Web` に入れないこと（提案書 08 章 / B-02）。
-- **`/api/health` が 503**: SPA 成果物が同梱できていない（`SPA_DIST_DIR` とパッケージの
-  `spa/browser/` を突き合わせる）。API 自体は 503 の本文で理由を返す（`app/main.py`）。
+- **ルート（`/`）で 503 "SPA is not built yet"**: API は動いているが SPA が見つからない。
+  多くは `SPA_DIST_DIR` に圧縮前の絶対パスが残っているケース。上記のとおり `config.py` が
+  相対解決するので、`SPA_DIST_DIR` は**未設定**にする（`az webapp config appsettings delete
+  --setting-names SPA_DIST_DIR`）。それでも出るなら、`output.tar.zst` に `spa/` が含まれているか
+  （＝パッケージに `spa/browser/` が入っていたか）を確認する。
 - **起動しない**: App Service の [ログ ストリーム] を見る。F1 は初回起動が遅い。
