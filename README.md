@@ -58,7 +58,7 @@ make dev
 ```bash
 make test            # 全て
 make test-backend    # pytest
-make test-frontend   # Karma/Jasmine（ヘッドレス）
+make test-frontend   # Vitest（jsdom・ヘッドレス）
 ```
 
 `make help` で全ターゲットを一覧できる。
