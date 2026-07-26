@@ -41,8 +41,14 @@ _Handler = Callable[[Request, Any], Response]
 
 
 def _render(problem: Problem, *, headers: dict[str, str] | None = None) -> ProblemResponse:
-    """``Problem`` を problem+json 応答にする。``None`` フィールドは本文から省く。"""
-    body = problem.model_dump(exclude_none=True)
+    """``Problem`` を problem+json 応答にする。
+
+    任意メンバー（``detail`` / ``instance`` / ``violations``）は**省略せず明示的な
+    ``null`` として載せる**。生成した TypeScript 型（`Problem`）はこれらを必須・nullable
+    として持つため、本文と型を一致させておくとフロントが `undefined` と `null` を
+    使い分けずに済む（OpenAPI を単一の真実にする以上、本文がそこからズレない）。
+    """
+    body = problem.model_dump()
     return ProblemResponse(status_code=problem.status, content=body, headers=headers)
 
 
