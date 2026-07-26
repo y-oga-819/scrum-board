@@ -38,9 +38,7 @@ def repo() -> InMemoryRepository:
 
 
 def test_run_registers_new_member(repo: InMemoryRepository) -> None:
-    summary = add_member.run(
-        repo, product_id=SCRUM_BOARD_PRODUCT_ID, oid=OID, role=Role.ADMIN
-    )
+    summary = add_member.run(repo, product_id=SCRUM_BOARD_PRODUCT_ID, oid=OID, role=Role.ADMIN)
 
     member = get_member(repo, product_id=SCRUM_BOARD_PRODUCT_ID, oid=OID)
     assert member is not None

@@ -74,9 +74,7 @@ def memberships_for_user(repo: Repository, oid: str) -> list[Document]:
     一度きり・小件数）。認可の点判定にはこれを使わない — それは ``mbr_<oid>`` の
     ポイントリードで済ませる（D-21）。
     """
-    return repo.query_across_partitions(
-        doc_type=DocumentType.MEMBER, equals={"userId": oid}
-    )
+    return repo.query_across_partitions(doc_type=DocumentType.MEMBER, equals={"userId": oid})
 
 
 def create_member(
@@ -119,9 +117,7 @@ def upsert_member(
     """
     existing = get_member(repo, product_id=product_id, oid=oid)
     if existing is None:
-        return create_member(
-            repo, product_id=product_id, oid=oid, role=role, actor=actor
-        )
+        return create_member(repo, product_id=product_id, oid=oid, role=role, actor=actor)
     if existing["role"] == role.value:
         return existing
     return repo.replace(

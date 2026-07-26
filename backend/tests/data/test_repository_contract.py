@@ -202,9 +202,7 @@ def test_query_across_partitions_spans_all_partitions(repo: InMemoryRepository) 
         doc_id="mbr_oid-2",
     )
 
-    found = repo.query_across_partitions(
-        doc_type=DocumentType.MEMBER, equals={"userId": "oid-1"}
-    )
+    found = repo.query_across_partitions(doc_type=DocumentType.MEMBER, equals={"userId": "oid-1"})
 
     products = {d["productId"] for d in found}
     assert products == {"prd_sandbox", "prd_scrum_board"}

@@ -135,9 +135,7 @@ def test_list_products_returns_sandbox_after_bootstrap(repo: InMemoryRepository)
 def test_list_products_spans_multiple_products_sorted(repo: InMemoryRepository) -> None:
     ensure_bootstrapped(repo, _user())
     # スクリプト相当: 本番プロダクトへ admin として登録。
-    create_member(
-        repo, product_id=SCRUM_BOARD_PRODUCT_ID, oid=OID, role=Role.ADMIN, actor="sys"
-    )
+    create_member(repo, product_id=SCRUM_BOARD_PRODUCT_ID, oid=OID, role=Role.ADMIN, actor="sys")
 
     products = list_products(repo, OID)
 
@@ -155,9 +153,7 @@ def test_list_products_empty_for_unknown_user(repo: InMemoryRepository) -> None:
 def test_list_products_falls_back_to_id_when_name_missing() -> None:
     # product ドキュメントが無くても所属は所属。表示名は productId で代替し欠落させない。
     repo = InMemoryRepository()
-    create_member(
-        repo, product_id="prd_orphan", oid=OID, role=Role.MEMBER, actor="sys"
-    )
+    create_member(repo, product_id="prd_orphan", oid=OID, role=Role.MEMBER, actor="sys")
 
     products = list_products(repo, OID)
 
