@@ -181,7 +181,9 @@ else
   echo "  ✅ 作った（無料レベル / ${COSMOS_LOCATION}）"
 fi
 
-# データベース（コンテナは B-07 で PK /productId 付きで作るのでここでは作らない）。
+# データベース（コンテナはアプリ側で作るのでここでは作らない）。B-07 で
+# backend/app/data/provisioning.py の ensure_container が PK /productId ＋
+# インデックス除外パス付きで冪等に作る（マイグレーション機構 B-08 が起動時に呼ぶ）。
 log "Cosmos データベース ${COSMOS_DATABASE}"
 az cosmosdb sql database create \
   --account-name "${COSMOS_ACCOUNT}" \

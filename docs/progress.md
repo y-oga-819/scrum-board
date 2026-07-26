@@ -39,14 +39,14 @@
 | マイルストーン | 到達点 | PBI | 進捗 |
 |:---:|:---|:---|:---:|
 | **M1** | ★**1ページがEntra IDで保護される**（Easy Authなし） | B-01 〜 B-06 | ✅ **6 / 6** |
-| **M2** | ★**認可まで通る**（非メンバーは403・初回サインインで自動参加） | B-07 〜 B-10 | 0 / 4 |
+| **M2** | ★**認可まで通る**（非メンバーは403・初回サインインで自動参加） | B-07 〜 B-10 | 1 / 4 |
 | **M3** | 開発の土台（テスト/CI/API規約/リポジトリ規約） | B-11 〜 B-14 | 0 / 4 |
 | **M4** | プロダクトバックログが運用できる | B-15 〜 B-20 | 0 / 6 |
 | **M5** | ★**スプリントが1周回る**（ここからドッグフーディング） | B-21 〜 B-26 | 0 / 6 |
 | **M6** | デイリースクラムがこの画面だけで完結する | B-27 〜 B-29 | 0 / 3 |
 | **M7** | 実運用に耐える | B-30 〜 B-31 | 0 / 2 |
 | **M8** | *（将来）* プロジェクトを自分たちで管理できる | B-32 〜 B-33 | 0 / 2 |
-| | | **合計** | **6 / 33** |
+| | | **合計** | **7 / 33** |
 
 > ★ **本プロジェクトの主題は「Easy Authを使わないEntra IDの認証・認可」のPoC**であり、
 > スクラムアプリはそれを実地で回すための題材を兼ねている（D-21）。
@@ -190,13 +190,28 @@ PoC自体を無検証で進めないため、**V-1〜V-4 のテストは B-04 �
 
 ## M2 — 認可まで通る ★PoC完成
 
-### ⬜ B-07 データアクセス基盤　`依存: B-05`
-- [ ] 単一コンテナを作成（PK `/productId`）
-- [ ] インデックス除外パス（`description` `memo` `minutes`）を設定
-- [ ] 共通フィールド付与（id=ULID / type / createdAt 等）が共通処理として動く
-- [ ] 論理削除（`isDeleted`）と、**全クエリでの `NOT isDeleted` 除外**を共通化した
-- [ ] `_etag` による楽観排他（`If-Match` / 412再取得）が共通処理として動く
-- [ ] **Repositoryがポートとして抽象化され、テスト用フェイクに差し替えられる**（D-19）
+### ✅ B-07 データアクセス基盤　`依存: B-05`
+> **完了（2026-07-26）。** `backend/app/data/` にデータアクセス基盤を実装。
+> **Repository をポート**（`repository.py`）として切り出し、層1・2用の
+> `InMemoryRepository`（`fake.py`）と本番 `CosmosRepository`（`cosmos.py`）を
+> 同一契約で差し替えられる（D-19）。共通フィールド付与（`documents.py` の
+> `stamp_new` / `stamp_update`）・論理削除の除外・`_etag` 楽観排他を**両実装が
+> 同じ関数／同じ SQL 生成を通して**一元化し、実装ごとにずれない。ポートは
+> `get`/`query` に削除済みを読む経路を提供せず、`replace`/`soft_delete` は
+> `if_match` を**必須引数**にして無条件更新を型で塞ぐ（D-20）。
+> コンテナ作成は `provisioning.ensure_container`（冪等）で PK `/productId` ＋
+> 除外パスを設定する。契約テスト（フェイク）・ULID・stamping・除外パスを
+> `tests/data/` で検証（`make test-backend` 緑・56件）。実 Cosmos に依存する
+> 412／バッチ原子性／RU 実測は層3（B-11）と実サービス（B-31）に回す。
+> `CosmosClient` は **アプリのライフタイムで1個だけ**生成して使い回す（コネクション
+> プールはクライアントが内部で共有・シングルトン）。`main.py` の lifespan がクライアントを
+> 所有し shutdown で `close()` する器を先に用意（未構成なら DB 無しで起動）。実配線は B-09 以降。
+- [x] 単一コンテナを作成（PK `/productId`）　`app/data/provisioning.py`（`create_container_if_not_exists`）
+- [x] インデックス除外パス（`description` `memo` `minutes`）を設定　`container_indexing_policy()`
+- [x] 共通フィールド付与（id=ULID / type / createdAt 等）が共通処理として動く　`documents.stamp_new`・`ids.new_id`
+- [x] 論理削除（`isDeleted`）と、**全クエリでの `NOT isDeleted` 除外**を共通化した（`get`/`query` が構造的に除外・`soft_delete` は物理削除しない）
+- [x] `_etag` による楽観排他（`If-Match` / 412再取得）が共通処理として動く（`replace`/`soft_delete` の `if_match` 必須・不一致は `PreconditionFailedError`=412）
+- [x] **Repositoryがポートとして抽象化され、テスト用フェイクに差し替えられる**（D-19）　`repository.Repository` / `fake.InMemoryRepository` / `cosmos.CosmosRepository`
 
 ### ⬜ B-08 マイグレーション機構と初期データ　`依存: B-07`
 > **方針決定済み** → [`D-21`](./decisions/D-21-bootstrap-and-migration.md)
@@ -498,4 +513,4 @@ PoC自体を無検証で進めないため、**V-1〜V-4 のテストは B-04 �
 
 ---
 
-_最終更新: 2026-07-26_
+_最終更新: 2026-07-26（B-07 データアクセス基盤 完了）_
