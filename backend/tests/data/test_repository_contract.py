@@ -174,6 +174,69 @@ def test_query_equals_filter_including_null(repo: InMemoryRepository) -> None:
     assert [d["id"] for d in unassigned] == [waiting["id"]]
 
 
+# --- クロスパーティションクエリ（所属プロダクト列挙。B-10） ------------------------
+
+
+def test_query_across_partitions_spans_all_partitions(repo: InMemoryRepository) -> None:
+    # 同じ oid の member を別々のプロダクト（別パーティション）に作る。
+    repo.create(
+        product_id="prd_sandbox",
+        doc_type=DocumentType.MEMBER,
+        data={"userId": "oid-1", "role": "member"},
+        actor="oid-1",
+        doc_id="mbr_oid-1",
+    )
+    repo.create(
+        product_id="prd_scrum_board",
+        doc_type=DocumentType.MEMBER,
+        data={"userId": "oid-1", "role": "admin"},
+        actor="oid-1",
+        doc_id="mbr_oid-1",
+    )
+    # 別ユーザーの member はノイズとして除外されること。
+    repo.create(
+        product_id="prd_sandbox",
+        doc_type=DocumentType.MEMBER,
+        data={"userId": "oid-2", "role": "member"},
+        actor="oid-2",
+        doc_id="mbr_oid-2",
+    )
+
+    found = repo.query_across_partitions(doc_type=DocumentType.MEMBER, equals={"userId": "oid-1"})
+
+    products = {d["productId"] for d in found}
+    assert products == {"prd_sandbox", "prd_scrum_board"}
+
+
+def test_query_across_partitions_filters_by_type(repo: InMemoryRepository) -> None:
+    repo.create(
+        product_id="prd_a",
+        doc_type=DocumentType.MEMBER,
+        data={"userId": "oid-1", "role": "member"},
+        actor="oid-1",
+        doc_id="mbr_oid-1",
+    )
+    _create_pbi(repo)  # 別型は横断でも拾わない
+
+    found = repo.query_across_partitions(doc_type=DocumentType.MEMBER)
+    assert [d["type"] for d in found] == ["member"]
+
+
+def test_query_across_partitions_excludes_soft_deleted(repo: InMemoryRepository) -> None:
+    created = repo.create(
+        product_id="prd_a",
+        doc_type=DocumentType.MEMBER,
+        data={"userId": "oid-1", "role": "member"},
+        actor="oid-1",
+        doc_id="mbr_oid-1",
+    )
+    repo.soft_delete(
+        product_id="prd_a", doc_id=created["id"], actor="oid-1", if_match=created["_etag"]
+    )
+
+    assert repo.query_across_partitions(doc_type=DocumentType.MEMBER) == []
+
+
 # --- 楽観排他 --------------------------------------------------------------------
 
 

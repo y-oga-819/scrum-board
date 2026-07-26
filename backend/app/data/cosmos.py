@@ -84,6 +84,19 @@ class CosmosRepository:
         )
         return [dict(item) for item in items]
 
+    def query_across_partitions(
+        self,
+        *,
+        doc_type: DocumentType,
+        equals: Mapping[str, object] | None = None,
+    ) -> list[Document]:
+        # partition_key を渡さない＝全パーティション横断（SDK が自動でファンアウトする）。
+        # RU が高くスケールしないため、呼び出しは限定する（ポート docstring・D-21）。
+        # 横断ソートは高価なので ORDER BY は付けない（並びは呼び出し側で決める）。
+        sql, params = _build_query(doc_type, equals or {}, order_by=())
+        items = self._container.query_items(query=sql, parameters=params)
+        return [dict(item) for item in items]
+
     def replace(
         self,
         *,

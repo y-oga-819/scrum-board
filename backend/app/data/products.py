@@ -31,6 +31,15 @@ def is_reserved_product_id(product_id: str) -> bool:
     return product_id in RESERVED_PRODUCT_IDS
 
 
+def get_product(repo: Repository, product_id: str) -> Document | None:
+    """``product`` ドキュメントをポイントリードする（``id == productId``）。
+
+    論理削除済み・未作成なら ``None``。所属一覧の表示名解決（B-10 の ``/api/me``）で
+    使う。``id == productId`` の規約をここに閉じ、呼び出し側に漏らさない。
+    """
+    return repo.get(product_id, product_id)
+
+
 def create_product(
     repo: Repository,
     *,

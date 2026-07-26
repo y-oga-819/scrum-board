@@ -75,6 +75,25 @@ class Repository(Protocol):
         """
         ...
 
+    def query_across_partitions(
+        self,
+        *,
+        doc_type: DocumentType,
+        equals: Mapping[str, object] | None = None,
+    ) -> list[Document]:
+        """**全パーティションを横断**して型で絞る（クロスパーティションクエリ）。
+
+        ``get`` / ``query`` と違いパーティションキーを取らない。RU コストが高く、
+        パーティション数に比例してスケールしないため、**使ってよい場面を限る**:
+        「ユーザーの所属プロダクト一覧」（B-10 の ``GET /api/me``）のように、
+        **セッション開始時に一度きり・件数が小さいと分かっている**横断だけ。
+        毎リクエスト通る認可判定はこれを使わずポイントリードで済ませる（D-21）。
+
+        ``NOT isDeleted`` は常に掛かる（``query`` と同じ）。横断ソートは高価なので
+        ``order_by`` は取らない。並びが要る呼び出し側が受け取ってから決める。
+        """
+        ...
+
     def replace(
         self,
         *,

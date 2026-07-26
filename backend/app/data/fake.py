@@ -65,6 +65,20 @@ class InMemoryRepository:
             return None
         return deepcopy(found)
 
+    def _matches(
+        self,
+        doc: Document,
+        *,
+        doc_type: DocumentType,
+        equals: Mapping[str, object],
+    ) -> bool:
+        """未削除・型一致・等値条件をすべて満たすか（get/query の共通判定）。"""
+        if doc.get("isDeleted"):
+            return False
+        if doc.get("type") != doc_type.value:
+            return False
+        return all(doc.get(field) == value for field, value in equals.items())
+
     def query(
         self,
         *,
@@ -78,11 +92,7 @@ class InMemoryRepository:
         for (pid, _), doc in self._store.items():
             if pid != product_id:
                 continue
-            if doc.get("isDeleted"):
-                continue
-            if doc.get("type") != doc_type.value:
-                continue
-            if all(doc.get(field) == value for field, value in equals.items()):
+            if self._matches(doc, doc_type=doc_type, equals=equals):
                 results.append(deepcopy(doc))
         # order_by のフィールドで昇順ソート。同 rank は id をタイブレーカーにする
         # （提案書 06章 ``ORDER BY rank, id``）。並びの正はサーバー保証（D-20）。
@@ -100,6 +110,21 @@ class InMemoryRepository:
 
         results.sort(key=sort_key)
         return results
+
+    def query_across_partitions(
+        self,
+        *,
+        doc_type: DocumentType,
+        equals: Mapping[str, object] | None = None,
+    ) -> list[Document]:
+        equals = equals or {}
+        # 全パーティションを走査する。フェイクは辞書全体を舐めるだけだが、本番 Cosmos では
+        # これがクロスパーティションクエリになる（RU が高い。使用は限定する — D-21）。
+        return [
+            deepcopy(doc)
+            for doc in self._store.values()
+            if self._matches(doc, doc_type=doc_type, equals=equals)
+        ]
 
     def _load_for_write(self, product_id: str, doc_id: str, if_match: str) -> Document:
         current = self._store.get((product_id, doc_id))
