@@ -51,6 +51,10 @@ make run
 # 開発（ライブリロード）: Angular :4200 + FastAPI :8000
 make dev
 # → http://localhost:4200
+
+# API だけをサインイン・Cosmos なしで叩く（スモーク確認用・非永続）
+make dev-fake
+# → http://localhost:8000（詳細は docs/setup/dev-fake.md）
 ```
 
 ## テスト

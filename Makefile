@@ -12,7 +12,7 @@ BACKEND_DIR  := backend
 PORT         ?= 8000
 
 .PHONY: help install install-frontend install-backend build build-frontend \
-        dev dev-frontend dev-backend run test test-frontend test-backend test-cosmos test-e2e \
+        dev dev-frontend dev-backend dev-fake run test test-frontend test-backend test-cosmos test-e2e \
         lint lint-frontend lint-backend typecheck typecheck-frontend \
         typecheck-backend gen-types coverage coverage-frontend coverage-backend clean
 
@@ -51,6 +51,11 @@ dev-backend: ## Run FastAPI with autoreload
 
 dev-frontend: ## Run the Angular dev server with the /api proxy
 	cd $(FRONTEND_DIR) && npm start
+
+dev-fake: ## Dev-only smoke harness: API on $(PORT) with an in-memory store + stub auth
+	# サインイン・Cosmos なしで API を叩くための使い捨てサーバー（非永続）。本番の入口は
+	# main.py（make run/dev）。dev-fake はスモーク確認専用で B-14 ゲスト経路とは別物。
+	PORT=$(PORT) uv run --project $(BACKEND_DIR) python scripts/dev_server.py
 
 ## ---- test -------------------------------------------------------------------
 
