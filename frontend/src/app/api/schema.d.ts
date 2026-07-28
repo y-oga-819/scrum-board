@@ -86,6 +86,31 @@ export interface paths {
         patch: operations["update_api_products__product_id__pbis__pbi_id__patch"];
         trace?: never;
     };
+    "/api/products/{product_id}/pbis/{pbi_id}/rank": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reorder
+         * @description PBI を前後の要素の**間**へ並び替える。更新は移動した1件だけ（提案書 06章）。
+         *
+         *     移動先の直前・直後の PBI id（:class:`RankMove`）から、両者の ``rank`` の間に入る
+         *     新しいランクをサーバーで生成し、移動した PBI の ``rank`` だけを書き換える。整数 order の
+         *     ように後続を巻き込まない（更新は常に1ドキュメント）。``If-Match`` は移動対象の
+         *     ``_etag``（欠落 428・不一致 412）。
+         */
+        post: operations["reorder_api_products__product_id__pbis__pbi_id__rank_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/{full_path}": {
         parameters: {
             query?: never;
@@ -278,6 +303,27 @@ export interface components {
             productId: string;
             /** Role */
             role: string;
+        };
+        /**
+         * RankMove
+         * @description 並び替えの移動先を**前後の要素 ID** で指定する（D-20）。
+         *
+         *     ランクそのものはクライアントに作らせない。移動先の直前・直後の要素 ID だけを受け取り、
+         *     サーバーが両者の ``rank`` の**間**に入る新しいランクを生成する（アルゴリズムを1箇所に
+         *     閉じ、フロントを差し替えても挙動が変わらない — 提案書 06章）。
+         *
+         *     * ``beforeId`` — 移動先の**直前**（1つ上・rank が小さい方）の PBI id。先頭へ動かす
+         *       場合は ``null``。
+         *     * ``afterId`` — 移動先の**直後**（1つ下・rank が大きい方）の PBI id。末尾へ動かす
+         *       場合は ``null``。
+         *
+         *     両方 ``null`` は「並びに他の要素が無い（唯一の要素）」を表す。
+         */
+        RankMove: {
+            /** Afterid */
+            afterId?: string | null;
+            /** Beforeid */
+            beforeId?: string | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -589,6 +635,96 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["PbiUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Pbi"];
+                };
+            };
+            /** @description Problem */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    reorder_api_products__product_id__pbis__pbi_id__rank_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pbi_id: string;
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RankMove"];
             };
         };
         responses: {

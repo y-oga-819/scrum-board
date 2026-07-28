@@ -27,7 +27,9 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..authz import Membership, get_repository, require_member
 from ..data import Repository
+from ..data.errors import InvalidRankBoundsError
 from ..data.pbis import PbiStatus, create_pbi, get_pbi, is_valid_transition
+from ..data.ranking import rank_between
 from ..http import (
     ProblemException,
     Violation,
@@ -73,6 +75,25 @@ class PbiUpdate(BaseModel):
     acceptanceCriteria: list[AcceptanceCriterion] | None = None
     estimate: int | None = None
     status: PbiStatus | None = None
+
+
+class RankMove(BaseModel):
+    """並び替えの移動先を**前後の要素 ID** で指定する（D-20）。
+
+    ランクそのものはクライアントに作らせない。移動先の直前・直後の要素 ID だけを受け取り、
+    サーバーが両者の ``rank`` の**間**に入る新しいランクを生成する（アルゴリズムを1箇所に
+    閉じ、フロントを差し替えても挙動が変わらない — 提案書 06章）。
+
+    * ``beforeId`` — 移動先の**直前**（1つ上・rank が小さい方）の PBI id。先頭へ動かす
+      場合は ``null``。
+    * ``afterId`` — 移動先の**直後**（1つ下・rank が大きい方）の PBI id。末尾へ動かす
+      場合は ``null``。
+
+    両方 ``null`` は「並びに他の要素が無い（唯一の要素）」を表す。
+    """
+
+    beforeId: str | None = None
+    afterId: str | None = None
 
 
 class Pbi(BaseModel):
@@ -178,6 +199,41 @@ def update(
     return updated
 
 
+@router.post(
+    "/{pbi_id}/rank",
+    response_model=Pbi,
+    responses=problem_responses(401, 403, 404, 412, 422, 428, 503),
+)
+def reorder(
+    pbi_id: str,
+    body: RankMove,
+    response: Response,
+    membership: Membership = Depends(require_member),
+    repo: Repository = Depends(get_repository),
+    if_match: str = Depends(require_if_match),
+) -> object:
+    """PBI を前後の要素の**間**へ並び替える。更新は移動した1件だけ（提案書 06章）。
+
+    移動先の直前・直後の PBI id（:class:`RankMove`）から、両者の ``rank`` の間に入る
+    新しいランクをサーバーで生成し、移動した PBI の ``rank`` だけを書き換える。整数 order の
+    ように後続を巻き込まない（更新は常に1ドキュメント）。``If-Match`` は移動対象の
+    ``_etag``（欠落 428・不一致 412）。
+    """
+    _load_or_404(repo, membership.product_id, pbi_id)
+    before_rank = _neighbor_rank(repo, membership.product_id, pbi_id, body.beforeId, "beforeId")
+    after_rank = _neighbor_rank(repo, membership.product_id, pbi_id, body.afterId, "afterId")
+    new_rank = _rank_between_or_422(before_rank, after_rank)
+    updated = repo.replace(
+        product_id=membership.product_id,
+        doc_id=pbi_id,
+        changes={"rank": new_rank},
+        actor=membership.oid,
+        if_match=if_match,
+    )
+    set_etag(response, updated)
+    return updated
+
+
 @router.delete(
     "/{pbi_id}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -209,6 +265,53 @@ def _load_or_404(repo: Repository, product_id: str, pbi_id: str) -> dict:
     if doc is None:
         raise ProblemException(status.HTTP_404_NOT_FOUND, detail="PBI が見つかりません")
     return doc
+
+
+def _neighbor_rank(
+    repo: Repository,
+    product_id: str,
+    moved_id: str,
+    neighbor_id: str | None,
+    field: str,
+) -> str | None:
+    """並び替えの隣接要素の ``rank`` を引く（端は ``None``）。
+
+    ``neighbor_id`` が ``None`` なら端（先頭／末尾）を表す ``None`` を返す。指定された
+    id が**存在しない・移動対象自身・rank 未設定**のいずれかなら、リクエスト本文の
+    問題として **422**（どのフィールドが不正かを ``violations`` に載せる）。
+    """
+    if neighbor_id is None:
+        return None
+    if neighbor_id == moved_id:
+        raise _rank_violation(field, "移動対象自身を前後の要素に指定できません")
+    neighbor = get_pbi(repo, product_id=product_id, pbi_id=neighbor_id)
+    if neighbor is None:
+        raise _rank_violation(field, "指定された前後の要素が存在しません")
+    rank = neighbor.get("rank")
+    if not isinstance(rank, str):
+        raise _rank_violation(field, "指定された前後の要素に rank がありません")
+    return rank
+
+
+def _rank_between_or_422(before: str | None, after: str | None) -> str:
+    """前後の rank の間の新しいランクを生成する。前後関係が破れていれば 422。"""
+    try:
+        return rank_between(before, after)
+    except InvalidRankBoundsError:
+        raise _rank_violation(
+            "beforeId", "beforeId は afterId より前（rank が小さい方）でなければなりません"
+        ) from None
+
+
+def _rank_violation(field: str, message: str) -> ProblemException:
+    """並び替え入力の不正を 422 problem にする（``rule='pbi-rank'``）。"""
+    return ProblemException(
+        status.HTTP_422_UNPROCESSABLE_ENTITY,
+        title="並び替えの指定が不正です",
+        type_slug="invalid-rank",
+        detail=message,
+        violations=[Violation(rule="pbi-rank", field=field, message=message)],
+    )
 
 
 def _check_status_transition(current: str, target: str) -> None:
