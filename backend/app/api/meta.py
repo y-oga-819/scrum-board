@@ -1,6 +1,8 @@
-"""API routes.
+"""横断的な API ルート（health / me）。
 
-Everything the frontend talks to lives under ``/api``.
+プロダクトスコープに属さない、アプリ全体の入口となるルートを持つ。個々のリソース
+（PBI・タスク・スプリント…）の CRUD は :mod:`app.api.pbis` のように**リソースごとの
+モジュール**へ分ける（:mod:`app.api` パッケージが束ねる）。
 
 * ``GET /api/health`` — 公開。フロントとAPIが同一オリジンで配信されている
   （CORS 不要）ことを SPA が示すための疎通確認（B-01）。
@@ -15,10 +17,10 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 
-from .auth import AuthenticatedUser, current_user
-from .config import SERVICE_NAME
-from .data import Repository
-from .onboarding import ensure_bootstrapped, list_products
+from ..auth import AuthenticatedUser, current_user
+from ..config import SERVICE_NAME
+from ..data import Repository
+from ..onboarding import ensure_bootstrapped, list_products
 
 router = APIRouter(prefix="/api")
 
