@@ -19,7 +19,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 
-from .api import router as api_router
+from .api import routers as api_routers
 from .config import spa_dist_dir
 from .data.migrations import run_migrations
 from .data.settings import build_repository, cosmos_settings_from_env, create_client
@@ -70,7 +70,8 @@ app = FastAPI(title="Scrum Board", lifespan=lifespan)
 install_error_handlers(app)
 # OpenAPI に共通の Problem スキーマを載せる（フロントの型生成が拾う。D-20）。
 install_openapi(app)
-app.include_router(api_router)
+for _router in api_routers:
+    app.include_router(_router)
 
 
 def _mount_spa(application: FastAPI) -> None:

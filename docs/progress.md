@@ -41,12 +41,12 @@
 | **M1** | ★**1ページがEntra IDで保護される**（Easy Authなし） | B-01 〜 B-06 | ✅ **6 / 6** |
 | **M2** | ★**認可まで通る**（非メンバーは403・初回サインインで自動参加） | B-07 〜 B-10 | ✅ **4 / 4** |
 | **M3** | 開発の土台（テスト/CI/API規約/リポジトリ規約） | B-11 〜 B-14 | 🟨 2 / 4（B-12・B-13 完了・B-11 進行中） |
-| **M4** | プロダクトバックログが運用できる | B-15 〜 B-20 | 0 / 6 |
+| **M4** | プロダクトバックログが運用できる | B-15 〜 B-20 | 🟨 1 / 6（B-15 完了） |
 | **M5** | ★**スプリントが1周回る**（ここからドッグフーディング） | B-21 〜 B-26 | 0 / 6 |
 | **M6** | デイリースクラムがこの画面だけで完結する | B-27 〜 B-29 | 0 / 3 |
 | **M7** | 実運用に耐える | B-30 〜 B-31 | 0 / 2 |
 | **M8** | *（将来）* プロジェクトを自分たちで管理できる | B-32 〜 B-33 | 0 / 2 |
-| | | **合計** | **12 / 33** |
+| | | **合計** | **13 / 33** |
 
 > ★ **本プロジェクトの主題は「Easy Authを使わないEntra IDの認証・認可」のPoC**であり、
 > スクラムアプリはそれを実地で回すための題材を兼ねている（D-21）。
@@ -380,10 +380,26 @@ PoC自体を無検証で進めないため、**V-1〜V-4 のテストは B-04 �
 
 ## M4 — プロダクトバックログが運用できる
 
-### ⬜ B-15 PBIのCRUD API　`依存: B-04, B-07`
-- [ ] 作成・取得・更新・論理削除ができる
-- [ ] 不正な状態遷移（new→ready→inProgress→done 以外）が弾かれる
-- [ ] **`PATCH`/`DELETE` は `If-Match` 必須**（欠落は428・不一致は412 — D-20）
+### ✅ B-15 PBIのCRUD API　`依存: B-04, B-07`
+> **完了（2026-07-28）。M4 の最初のリソース CRUD。** M4 以降でリソースごとの CRUD
+> ルータが増える前に、`app/api.py` を **`app/api/` パッケージ**へ切り出した（横断ルート
+> は `api/meta.py`・PBI は `api/pbis.py`。`main.py` はルータ群を順に include するだけ）。
+> ドメイン規則（状態の語彙 `PbiStatus` と正当な遷移 `is_valid_transition`）は
+> **データ層の純関数**（`app/data/pbis.py`）に一元化し、HTTP への翻訳（422・`violations`）
+> だけを API 層に置いた（データ層は HTTP を知らない）。エンドポイントは B-09 の
+> `require_member` に依存するだけで **非メンバー 403**、B-12 の `require_if_match` で
+> **`If-Match` を構造的に必須**にし、`problem_responses` で RFC 9457 応答を OpenAPI に
+> 宣言した（規約をハンドラに書き散らさない — D-20）。単一ドキュメント応答は `ETag` を
+> ヘッダで返し、本文に `_etag` は載せない（集約 GET の各要素返却は B-17）。`PbiUpdate` は
+> `rank`／`parentPbiId`／`completedAt`／`completedSprintId` を持たず、それらの規則を
+> 汎用 `PATCH` に漏らさない（採番＝B-16・分割＝B-19・完了地の刻印＝B-25 が所有）。
+> フェイク Repository で作成→取得→更新→論理削除・状態遷移・412／428・パーティション
+> 境界を端から端まで検証し、OpenAPI から `schema.d.ts` を再生成した
+> （`make test` 緑・pytest 171 件／Vitest／`make lint`／`make typecheck` 緑）。実 Cosmos
+> での往復は層3（B-11）と実サービス（B-31）へ。
+- [x] 作成・取得・更新・論理削除ができる　`app/api/pbis.py`（POST/GET/PATCH/DELETE）＋ `app/data/pbis.py`（`create_pbi`／`get_pbi`）
+- [x] 不正な状態遷移（new→ready→inProgress→done 以外）が弾かれる　`is_valid_transition`（前進の隣接＋据え置きのみ許可）→ 不正は 422＋`violations`（`rule=pbi-status-transition`）
+- [x] **`PATCH`/`DELETE` は `If-Match` 必須**（欠落は428・不一致は412 — D-20）　`require_if_match`（428）／`repo.replace`・`repo.soft_delete` の `if_match`（412）
 
 ### ⬜ B-16 並び替え（rank）　`依存: B-07`
 > **最初の作業（Q-E）**: 実データを10件ほど投入し `ORDER BY` の結果が辞書順と一致するか確認する。
@@ -594,6 +610,6 @@ PoC自体を無検証で進めないため、**V-1〜V-4 のテストは B-04 �
 
 ---
 
-_最終更新: 2026-07-28（B-13 リポジトリ規約の整備 完了。LICENSE（MIT）配置・CONTRIBUTING
-（開発フロー／ブランチ戦略／コミット規約）追加・README に導線・`main` のブランチ保護を
-有効化（必須チェック Backend/Frontend/Types/E2E）。B-12 API共通規約 完了・B-11 進行中）_
+_最終更新: 2026-07-28（B-15 PBIのCRUD API 完了。`app/api/` パッケージ化・`app/data/pbis.py`
+（状態遷移の純関数）・`app/api/pbis.py`（作成／取得／更新／論理削除・If-Match 必須・不正
+遷移を422で拒否）・OpenAPI から schema.d.ts 再生成。M4 に着手＝1/6。B-11 進行中）_
