@@ -13,6 +13,9 @@ dependencies = [
     # データアクセス基盤（B-07）。単一コンテナへの読み書きと _etag 楽観排他。
     # 層1・2 はフェイク Repository で回るため、この SDK は本番と層3のみで使う（D-19）。
     "azure-cosmos>=4.7",
+    # 並び替え（B-16）の文字列ランク生成。先頭・末尾・キー枯渇の境界条件を自前で誤ると
+    # 順序が静かに壊れるため、実績あるライブラリに委ねる（提案書 06章の設計判断）。
+    "fractional-indexing>=0.1.3",
 ]
 
 [project.optional-dependencies]
@@ -60,6 +63,13 @@ ignore = [
 python_version = "3.11"
 # app と tests を対象に型チェックする（設定は明示的に、CI と手元で同じ結果に）。
 files = ["app", "tests"]
+
+# fractional-indexing（B-16 の文字列ランク生成）は型スタブ（py.typed）を同梱しない。
+# 薄いラッパ（app/data/ranking.py）で境界を閉じているため、この 1 モジュールだけ
+# 未型付け import を許容する。
+[[tool.mypy.overrides]]
+module = ["fractional_indexing"]
+ignore_missing_imports = true
 
 [tool.setuptools.packages.find]
 where = ["."]

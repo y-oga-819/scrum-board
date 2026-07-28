@@ -7,6 +7,7 @@ HTTP からは切り離しておく（データ層は FastAPI を知らない）
   | 例外                     | HTTP | 意味                                   |
   |:-------------------------|:----:|:---------------------------------------|
   | ReservedProductIdError   | 422  | 予約語を productId に使おうとした（``_system``） |
+  | InvalidRankBoundsError   | 422  | 並び替えの前後関係が不正（``before >= after``） |
   | NotFoundError            | 404  | 存在しない／論理削除済み（存在を漏らさない） |
   | ConflictError            | 409  | ドメイン競合（id 重複など）             |
   | PreconditionFailedError  | 412  | 楽観排他の失敗（``If-Match`` 不一致）    |
@@ -27,6 +28,16 @@ class ReservedProductIdError(DataError):
 
     マイグレーション（B-08）と将来のプロジェクト作成（B-32）が同じ関門で弾く。
     ユーザー入力に由来する場合は D-20 の 422（バリデーション）に対応する。
+    """
+
+    http_status = 422
+
+
+class InvalidRankBoundsError(DataError):
+    """並び替え（B-16）で前後関係が破れている（``before >= after``）。
+
+    クライアントが渡した前後の要素 ID から生成しようとしたランクの境界が不正な場合。
+    ユーザー操作（ドラッグの前後指定）に由来するため D-20 の 422 に対応する。
     """
 
     http_status = 422

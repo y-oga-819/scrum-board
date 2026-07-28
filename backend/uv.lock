@@ -468,6 +468,18 @@ wheels = [
 ]
 
 [[package]]
+name = "fractional-indexing"
+version = "0.1.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "setuptools" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/76/9e/2c14b6dc812defa58e9d515b44b4d126b48338545e14089413df50dadda3/fractional-indexing-0.1.3.tar.gz", hash = "sha256:59e25f441c213bf7f921aa329a6bf3e5930ee8d8852df0b4e930aaf39a39ac5e", size = 7791, upload-time = "2023-08-13T10:03:16.946Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/02/d1/627b86b1eb95ec2c7e012f0036e28a9335f3177f6c7e15047df6ee544bbc/fractional_indexing-0.1.3-py3-none-any.whl", hash = "sha256:389abb9da24add388af3f0146ee4fcf2ebec5816ee728fa672657e394d9a7824", size = 7971, upload-time = "2023-08-13T10:03:15.504Z" },
+]
+
+[[package]]
 name = "h11"
 version = "0.16.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1018,6 +1030,7 @@ source = { editable = "." }
 dependencies = [
     { name = "azure-cosmos" },
     { name = "fastapi" },
+    { name = "fractional-indexing" },
     { name = "httpx" },
     { name = "pyjwt", extra = ["crypto"] },
     { name = "uvicorn", extra = ["standard"] },
@@ -1035,6 +1048,7 @@ dev = [
 requires-dist = [
     { name = "azure-cosmos", specifier = ">=4.7" },
     { name = "fastapi", specifier = ">=0.115" },
+    { name = "fractional-indexing", specifier = ">=0.1.3" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.13" },
     { name = "pyjwt", extras = ["crypto"], specifier = ">=2.8" },
@@ -1044,6 +1058,15 @@ requires-dist = [
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30" },
 ]
 provides-extras = ["dev"]
+
+[[package]]
+name = "setuptools"
+version = "83.0.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/34/26/f5d29e25ffdb535afef2d35cdb55b325298f96debd670da4c325e08d70f4/setuptools-83.0.0.tar.gz", hash = "sha256:025bccbbf0fa05b6192bc64ae1e7b16e001fd6d6d4d5de03c97b1c1ade523bef", size = 1154254, upload-time = "2026-07-04T15:31:22.699Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5d/40/e1e72872c6354b306daef1703549e8e83b4d43cfea356311bf722a043752/setuptools-83.0.0-py3-none-any.whl", hash = "sha256:29b23c360f22f414dc7336bb39178cc7bcbf6021ed2733cde173f09dba19abb3", size = 1008090, upload-time = "2026-07-04T15:31:20.885Z" },
+]
 
 [[package]]
 name = "starlette"
