@@ -252,6 +252,7 @@ def test_patch_invalid_status_transition_is_422_with_violation(client: TestClien
 
 def test_patch_cannot_edit_completed_fields(client: TestClient) -> None:
     # completedAt / rank は PATCH モデルに無いため、送っても無視される（未知フィールド）。
+    # rank の変更は専用エンドポイント（POST .../rank）が所有し、汎用 PATCH では動かさない。
     created = _create(client)
     etag = client.get(f"{PBIS_URL}/{created['id']}").headers["ETag"]
 
@@ -264,7 +265,8 @@ def test_patch_cannot_edit_completed_fields(client: TestClient) -> None:
     assert res.status_code == 200
     body = res.json()
     assert body["completedAt"] is None
-    assert body["rank"] is None
+    # rank は作成時に採番された値のまま（PATCH では変えられない）。
+    assert body["rank"] == created["rank"]
 
 
 # --- 論理削除 ----------------------------------------------------------------

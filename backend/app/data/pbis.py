@@ -24,6 +24,7 @@ from __future__ import annotations
 from enum import StrEnum
 
 from .documents import Document, DocumentType
+from .ranking import rank_after
 from .repository import Repository
 
 
@@ -70,7 +71,9 @@ def new_pbi_data(
 
     作成時の状態は必ず ``new``（提案書 図6 の始点）。``completedAt`` /
     ``completedSprintId`` / ``parentPbiId`` は ``null`` から始まり、それぞれ B-25 / B-19 が
-    後で刻む。``rank`` も ``null`` で置き、並び順の採番は B-16 が所有する。
+    後で刻む。``rank`` はここでは ``null`` を置く**プレースホルダ**にすぎない。実際の採番
+    には並びの末尾（現在の最大 rank）が要るため、repo を持つ :func:`create_pbi` が
+    作成直前に上書きで打つ（B-16 が rank を所有する）。
     """
     return {
         "title": title,
@@ -85,6 +88,21 @@ def new_pbi_data(
     }
 
 
+def last_rank(repo: Repository, product_id: str) -> str | None:
+    """パーティション内の PBI の**最大 rank**（末尾）を返す。無ければ ``None``。
+
+    末尾追加の採番に使う。``rank`` が未設定（``None``）の PBI は除いて最大を採る。
+    パーティションを 1 回舐めるだけで、バックログは単一パーティション・小件数のため
+    許容する（クロスパーティションではない）。
+    """
+    ranks = [
+        doc["rank"]
+        for doc in repo.query(product_id=product_id, doc_type=DocumentType.PBI)
+        if doc.get("rank") is not None
+    ]
+    return max(ranks) if ranks else None
+
+
 def create_pbi(
     repo: Repository,
     *,
@@ -95,16 +113,23 @@ def create_pbi(
     acceptance_criteria: list[Document] | None = None,
     estimate: int | None = None,
 ) -> Document:
-    """PBI を1件作成し、``_etag`` 付きの保存結果を返す（id は ``pbi_<ULID>``）。"""
+    """PBI を1件作成し、``_etag`` 付きの保存結果を返す（id は ``pbi_<ULID>``）。
+
+    ``rank`` は**バックログの末尾**に採番する（新規 PBI は最下位に積まれる）。以後の
+    並び替えは専用エンドポイント（:mod:`app.api.pbis` の ``POST .../rank``）が前後の
+    要素 ID から生成し直す（B-16）。
+    """
+    data = new_pbi_data(
+        title=title,
+        description=description,
+        acceptance_criteria=acceptance_criteria,
+        estimate=estimate,
+    )
+    data["rank"] = rank_after(last_rank(repo, product_id))
     return repo.create(
         product_id=product_id,
         doc_type=DocumentType.PBI,
-        data=new_pbi_data(
-            title=title,
-            description=description,
-            acceptance_criteria=acceptance_criteria,
-            estimate=estimate,
-        ),
+        data=data,
         actor=actor,
     )
 

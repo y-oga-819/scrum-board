@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import pytest
 
+from app.data.documents import DocumentType
 from app.data.fake import InMemoryRepository
 from app.data.members import Role, create_member
 from app.data.pbis import (
@@ -115,3 +116,32 @@ def test_get_pbi_rejects_non_pbi_id(repo: InMemoryRepository) -> None:
 
 def test_get_pbi_missing_is_none(repo: InMemoryRepository) -> None:
     assert get_pbi(repo, product_id=PRODUCT, pbi_id="pbi_missing") is None
+
+
+# --- 作成時の rank 採番（B-16） ----------------------------------------------
+
+
+def test_create_pbi_appends_rank_at_end(repo: InMemoryRepository) -> None:
+    # 新規 PBI はバックログの末尾に採番される（後から作るほど rank が大きい）。
+    first = create_pbi(repo, product_id=PRODUCT, actor=ACTOR, title="1つめ")
+    second = create_pbi(repo, product_id=PRODUCT, actor=ACTOR, title="2つめ")
+    third = create_pbi(repo, product_id=PRODUCT, actor=ACTOR, title="3つめ")
+
+    assert first["rank"] is not None
+    assert first["rank"] < second["rank"] < third["rank"]
+
+
+def test_create_pbi_rank_matches_query_order(repo: InMemoryRepository) -> None:
+    # 作成順に採番されるので、既定の ORDER BY rank, id が作成順と一致する。
+    titles = ["a", "b", "c", "d"]
+    for title in titles:
+        create_pbi(repo, product_id=PRODUCT, actor=ACTOR, title=title)
+
+    ordered = repo.query(product_id=PRODUCT, doc_type=DocumentType.PBI)
+    assert [doc["title"] for doc in ordered] == titles
+
+
+def test_last_rank_is_none_on_empty_partition(repo: InMemoryRepository) -> None:
+    from app.data.pbis import last_rank
+
+    assert last_rank(repo, PRODUCT) is None
