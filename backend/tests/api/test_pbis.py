@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 from app.api.pbis import router as pbis_router
 from app.auth import get_current_user_resolver
 from app.auth.resolver import AuthenticatedUser
+from app.data.documents import DocumentType
 from app.data.fake import InMemoryRepository
 from app.data.members import Role, create_member
 from app.http import install_error_handlers
@@ -323,5 +324,177 @@ def test_patch_on_deleted_is_404(client: TestClient) -> None:
 def test_member_cannot_touch_other_product(client: TestClient) -> None:
     # サンドボックスの member 資格で本番プロダクトの PBI を作っても 403（B-09）。
     res = client.post(f"/api/products/{OTHER_PRODUCT}/pbis", json={"title": "x"})
+
+    assert res.status_code == 403
+
+
+# --- 並び替え（B-16） --------------------------------------------------------
+
+
+def _etag_of(client: TestClient, pbi_id: str) -> str:
+    return client.get(f"{PBIS_URL}/{pbi_id}").headers["ETag"]
+
+
+def _ranks(repo: InMemoryRepository) -> dict[str, str]:
+    """パーティション内の PBI の id → rank（更新件数の検査に使う）。"""
+    return {
+        doc["id"]: doc["rank"]
+        for doc in repo.query(product_id=PRODUCT, doc_type=DocumentType.PBI)
+    }
+
+
+def test_reorder_places_between_neighbors(client: TestClient) -> None:
+    # 末尾採番なので rank は a < b < c。c を a と b の間へ動かす。
+    a = _create(client, title="A")
+    b = _create(client, title="B")
+    c = _create(client, title="C")
+
+    res = client.post(
+        f"{PBIS_URL}/{c['id']}/rank",
+        json={"beforeId": a["id"], "afterId": b["id"]},
+        headers={"If-Match": _etag_of(client, c["id"])},
+    )
+
+    assert res.status_code == 200, res.text
+    moved = res.json()
+    assert a["rank"] < moved["rank"] < b["rank"]
+    # 単一ドキュメント応答は ETag を返す（D-20）。
+    assert res.headers.get("ETag")
+    assert "_etag" not in moved
+
+
+def test_reorder_updates_only_one_document(client: TestClient, repo: InMemoryRepository) -> None:
+    a = _create(client, title="A")
+    b = _create(client, title="B")
+    c = _create(client, title="C")
+    before = _ranks(repo)
+
+    client.post(
+        f"{PBIS_URL}/{c['id']}/rank",
+        json={"beforeId": a["id"], "afterId": b["id"]},
+        headers={"If-Match": _etag_of(client, c["id"])},
+    )
+
+    after = _ranks(repo)
+    changed = [pid for pid in before if before[pid] != after[pid]]
+    assert changed == [c["id"]]  # 移動した1件だけ rank が変わる（提案書 06章）
+
+
+def test_reorder_to_front(client: TestClient) -> None:
+    a = _create(client, title="A")
+    b = _create(client, title="B")
+
+    res = client.post(
+        f"{PBIS_URL}/{b['id']}/rank",
+        json={"beforeId": None, "afterId": a["id"]},
+        headers={"If-Match": _etag_of(client, b["id"])},
+    )
+
+    assert res.status_code == 200
+    assert res.json()["rank"] < a["rank"]  # 先頭へ回った
+
+
+def test_reorder_to_end(client: TestClient) -> None:
+    a = _create(client, title="A")
+    b = _create(client, title="B")
+
+    res = client.post(
+        f"{PBIS_URL}/{a['id']}/rank",
+        json={"beforeId": b["id"], "afterId": None},
+        headers={"If-Match": _etag_of(client, a["id"])},
+    )
+
+    assert res.status_code == 200
+    assert res.json()["rank"] > b["rank"]  # 末尾へ回った
+
+
+def test_reorder_without_if_match_is_428(client: TestClient) -> None:
+    a = _create(client, title="A")
+    b = _create(client, title="B")
+
+    res = client.post(f"{PBIS_URL}/{b['id']}/rank", json={"afterId": a["id"]})
+
+    assert res.status_code == 428
+
+
+def test_reorder_with_stale_if_match_is_412(client: TestClient) -> None:
+    a = _create(client, title="A")
+    b = _create(client, title="B")
+
+    res = client.post(
+        f"{PBIS_URL}/{b['id']}/rank",
+        json={"afterId": a["id"]},
+        headers={"If-Match": '"stale"'},
+    )
+
+    assert res.status_code == 412
+
+
+def test_reorder_missing_target_is_404(client: TestClient) -> None:
+    res = client.post(
+        f"{PBIS_URL}/pbi_missing/rank",
+        json={"afterId": None},
+        headers={"If-Match": '"any"'},
+    )
+
+    assert res.status_code == 404
+
+
+def test_reorder_unknown_neighbor_is_422(client: TestClient) -> None:
+    a = _create(client, title="A")
+
+    res = client.post(
+        f"{PBIS_URL}/{a['id']}/rank",
+        json={"afterId": "pbi_missing"},
+        headers={"If-Match": _etag_of(client, a["id"])},
+    )
+
+    assert res.status_code == 422
+    assert res.headers["content-type"].startswith("application/problem+json")
+    violation = res.json()["violations"][0]
+    assert violation["rule"] == "pbi-rank"
+    assert violation["field"] == "afterId"
+
+
+def test_reorder_self_as_neighbor_is_422(client: TestClient) -> None:
+    a = _create(client, title="A")
+
+    res = client.post(
+        f"{PBIS_URL}/{a['id']}/rank",
+        json={"beforeId": a["id"]},
+        headers={"If-Match": _etag_of(client, a["id"])},
+    )
+
+    assert res.status_code == 422
+    assert res.json()["violations"][0]["rule"] == "pbi-rank"
+
+
+def test_reorder_inverted_bounds_is_422(client: TestClient) -> None:
+    # rank は a < b < c。b を「c の後・a の前」に置けと言われても前後が破れている。
+    a = _create(client, title="A")
+    b = _create(client, title="B")
+    c = _create(client, title="C")
+
+    res = client.post(
+        f"{PBIS_URL}/{b['id']}/rank",
+        json={"beforeId": c["id"], "afterId": a["id"]},
+        headers={"If-Match": _etag_of(client, b["id"])},
+    )
+
+    assert res.status_code == 422
+    assert res.json()["violations"][0]["rule"] == "pbi-rank"
+
+
+def test_reorder_by_non_member_is_forbidden(repo: InMemoryRepository) -> None:
+    # 先に member として1件作っておき、非メンバーで並び替えを試みる。
+    member_client = _client(_build_app(repo), as_oid=MEMBER_OID)
+    a = _create(member_client, title="A")
+
+    stranger = _client(_build_app(repo), as_oid=STRANGER_OID)
+    res = stranger.post(
+        f"{PBIS_URL}/{a['id']}/rank",
+        json={"afterId": None},
+        headers={"If-Match": '"any"'},
+    )
 
     assert res.status_code == 403
