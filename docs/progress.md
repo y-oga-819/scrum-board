@@ -40,13 +40,13 @@
 |:---:|:---|:---|:---:|
 | **M1** | ★**1ページがEntra IDで保護される**（Easy Authなし） | B-01 〜 B-06 | ✅ **6 / 6** |
 | **M2** | ★**認可まで通る**（非メンバーは403・初回サインインで自動参加） | B-07 〜 B-10 | ✅ **4 / 4** |
-| **M3** | 開発の土台（テスト/CI/API規約/リポジトリ規約） | B-11 〜 B-14 | 🟨 1 / 4（B-12 完了・B-11/B-13 進行中） |
+| **M3** | 開発の土台（テスト/CI/API規約/リポジトリ規約） | B-11 〜 B-14 | 🟨 2 / 4（B-12・B-13 完了・B-11 進行中） |
 | **M4** | プロダクトバックログが運用できる | B-15 〜 B-20 | 0 / 6 |
 | **M5** | ★**スプリントが1周回る**（ここからドッグフーディング） | B-21 〜 B-26 | 0 / 6 |
 | **M6** | デイリースクラムがこの画面だけで完結する | B-27 〜 B-29 | 0 / 3 |
 | **M7** | 実運用に耐える | B-30 〜 B-31 | 0 / 2 |
 | **M8** | *（将来）* プロジェクトを自分たちで管理できる | B-32 〜 B-33 | 0 / 2 |
-| | | **合計** | **11 / 33** |
+| | | **合計** | **12 / 33** |
 
 > ★ **本プロジェクトの主題は「Easy Authを使わないEntra IDの認証・認可」のPoC**であり、
 > スクラムアプリはそれを実地で回すための題材を兼ねている（D-21）。
@@ -345,18 +345,19 @@ PoC自体を無検証で進めないため、**V-1〜V-4 のテストは B-04 �
 - [x] OpenAPI から TS型を生成し、**CIで生成物の差分を検出**する　`scripts/gen_openapi.py` ／ `make gen-types` ／ CI ジョブ `types`
 - [x] クエリ規約（論理削除は常時除外・ページングなし・`ORDER BY rank, id` はサーバー保証）　B-07 のポートが構造的に保証（`DEFAULT_ORDER=(rank,id)`・`NOT isDeleted`・ページングなし）
 
-### 🟨 B-13 リポジトリ規約の整備　`依存: —`
-> **文書は整備した（2026-07-28）。** MIT の `LICENSE`（著作権者 y-oga-819）を配置し、
+### ✅ B-13 リポジトリ規約の整備　`依存: —`
+> **完了（2026-07-28）。** MIT の `LICENSE`（著作権者 y-oga-819）を配置し、
 > `CONTRIBUTING.md` に**開発の流れ・ブランチ戦略・コミットメッセージ規約・品質ゲート・
 > PR の書き方**を集約した（AI 向けの `CLAUDE.md` と規約を一致させ、二重管理にしない）。
 > README からセットアップ手順に加えて CONTRIBUTING とライセンスへ導線を張った。
-> **残るは「ブランチ保護の有効化」のみ** — GitHub の管理者操作で閉じる性質のため
-> 別途対応中（導線・手順は完成済み → [`docs/setup/ci-branch-protection.md`](./setup/ci-branch-protection.md)）。
+> **`main` のブランチ保護を有効化し、必須チェック（Backend / Frontend / Types / E2E）が
+> 緑でなければマージできない**状態にした（B-11 の申し送りをここで回収。手順
+> [`docs/setup/ci-branch-protection.md`](./setup/ci-branch-protection.md)）。
 - [x] LICENSE を配置した　MIT・`LICENSE`（Copyright 2026 y-oga-819）
 - [x] README に開発セットアップ手順を書いた　`README.md`（`make install`/`dev`/`run`/`test` ＋ 開発への参加・ライセンス節）
 - [x] コミットメッセージ規約・ブランチ戦略を決めた　`CONTRIBUTING.md`（Conventional Commits 風／`main` 保護・短命ブランチ・PR）
 - [x] CONTRIBUTING（または開発ガイド）を用意した　`CONTRIBUTING.md`
-- [ ] **ブランチ保護を有効化し、CI 失敗でマージがブロックされる**（B-11 で導線は完成・管理者操作で閉じる。手順 [`docs/setup/ci-branch-protection.md`](./setup/ci-branch-protection.md)）　← 管理者が別途対応中
+- [x] **ブランチ保護を有効化し、CI 失敗でマージがブロックされる**（`main` の必須チェックに Backend / Frontend / Types / E2E を指定。手順 [`docs/setup/ci-branch-protection.md`](./setup/ci-branch-protection.md)）
 
 ---
 
@@ -593,6 +594,6 @@ PoC自体を無検証で進めないため、**V-1〜V-4 のテストは B-04 �
 
 ---
 
-_最終更新: 2026-07-28（B-13 リポジトリ規約の整備 進行中。LICENSE（MIT）配置・CONTRIBUTING
-（開発フロー／ブランチ戦略／コミット規約）追加・README に導線。残るブランチ保護の有効化は
-管理者操作で別途対応中。B-12 API共通規約 完了・B-11 進行中）_
+_最終更新: 2026-07-28（B-13 リポジトリ規約の整備 完了。LICENSE（MIT）配置・CONTRIBUTING
+（開発フロー／ブランチ戦略／コミット規約）追加・README に導線・`main` のブランチ保護を
+有効化（必須チェック Backend/Frontend/Types/E2E）。B-12 API共通規約 完了・B-11 進行中）_
