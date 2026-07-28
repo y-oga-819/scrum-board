@@ -41,7 +41,7 @@
 | **M1** | ★**1ページがEntra IDで保護される**（Easy Authなし） | B-01 〜 B-06 | ✅ **6 / 6** |
 | **M2** | ★**認可まで通る**（非メンバーは403・初回サインインで自動参加） | B-07 〜 B-10 | ✅ **4 / 4** |
 | **M3** | 開発の土台（テスト/CI/API規約/リポジトリ規約） | B-11 〜 B-14 | 🟨 2 / 4（B-12・B-13 完了・B-11 進行中） |
-| **M4** | プロダクトバックログが運用できる | B-15 〜 B-20 | 🟨 1 / 6（B-15 完了） |
+| **M4** | プロダクトバックログが運用できる | B-15 〜 B-20 | 🟨 1 / 6（B-15 完了・B-16 実装完了/Q-E 待ち） |
 | **M5** | ★**スプリントが1周回る**（ここからドッグフーディング） | B-21 〜 B-26 | 0 / 6 |
 | **M6** | デイリースクラムがこの画面だけで完結する | B-27 〜 B-29 | 0 / 3 |
 | **M7** | 実運用に耐える | B-30 〜 B-31 | 0 / 2 |
@@ -81,7 +81,7 @@ PoC自体を無検証で進めないため、**V-1〜V-4 のテストは B-04 �
 | ~~Q-B~~ | ~~`productId` の発生源とseeding~~ → **決定済み** [`D-21`](./decisions/D-21-bootstrap-and-migration.md) | B-08 | ✅ 2026-07-25 |
 | ~~Q-C~~ | ~~認可ブートストラップ~~ → **決定済み** [`D-21`](./decisions/D-21-bootstrap-and-migration.md) | B-10 | ✅ 2026-07-25 |
 | ~~Q-D~~ | ~~API共通規約~~ → **決定済み** [`D-20`](./decisions/D-20-api-conventions.md) | B-12 | ✅ 2026-07-25 |
-| Q-E | Cosmos の `ORDER BY` が辞書順と一致するか（提案書 Q-1） | B-16 | B-16の最初の作業 |
+| Q-E | Cosmos の `ORDER BY` が辞書順と一致するか（提案書 Q-1）→ 検証スクリプト用意済み `scripts/verify_rank_ordering.py`（**要 Azure 実行**） | B-16 | B-16 の残作業（実装は完了） |
 | Q-F | 楽観排他 412 発生後のUX（再取得マージ／再操作促し） | B-26 | B-23着手前 |
 
 **🔴 Blocker はすべて解消済み。** 残る Q-E は実装時の検証、Q-F は B-23 着手時に決めれば足りる。
@@ -401,19 +401,37 @@ PoC自体を無検証で進めないため、**V-1〜V-4 のテストは B-04 �
 - [x] 不正な状態遷移（new→ready→inProgress→done 以外）が弾かれる　`is_valid_transition`（前進の隣接＋据え置きのみ許可）→ 不正は 422＋`violations`（`rule=pbi-status-transition`）
 - [x] **`PATCH`/`DELETE` は `If-Match` 必須**（欠落は428・不一致は412 — D-20）　`require_if_match`（428）／`repo.replace`・`repo.soft_delete` の `if_match`（412）
 
-### ⬜ B-16 並び替え（rank）　`依存: B-07`
-> **最初の作業（Q-E）**: 実データを10件ほど投入し `ORDER BY` の結果が辞書順と一致するか確認する。
-> 通らなければ**浮動小数＋定期リバランスに切り替える**（この分岐はB-16の工数を膨らませ得ると認識しておく）。
+### 🟨 B-16 並び替え（rank）　`依存: B-07`
+> **実装は完了、残るは実サービスでの照合順序検証（Q-E）だけ（2026-07-28）。**
+> 文字列ランク（fractional indexing）を `app/data/ranking.py`（Base36・ライブラリ委譲）に、
+> 並び替えを専用エンドポイント `POST /api/products/{pid}/pbis/{id}/rank`（前後の要素 ID を
+> 受け取りサーバーで生成）に実装した。PBI は**作成時にバックログ末尾へ採番**し（全 PBI が
+> rank を持つ＝前後補間が常に成り立つ）、移動は**1 ドキュメントだけ**を更新する。規約は
+> ハンドラに書き散らさず既存部品に依存（非メンバー 403・If-Match 必須 428/412・前後関係
+> 破れ／不明な隣接／自己指定は 422＋`violations` rule=`pbi-rank`）。`make test`（pytest
+> 195 件）・`make lint`・`make typecheck` 緑。OpenAPI から `schema.d.ts` 再生成。
 >
-> ⚠️ **この検証は実サービスで行う。エミュレータでの確認は不可**（D-19）。
-> エミュレータと実サービスで照合順序が異なった場合、「テストが通っているのに本番で
-> 並びが静かに壊れる」という最悪の形になる。一度きりの独立ゲートとして扱い、CIには載せない。
+> ⚠️ **ライブラリの含意**: fractional-indexing は桁部に Base36 を使うが、整数長ヘッダ
+> （先頭 1 文字）は `digits` と無関係に `a-z`／`A-Z` を使う。**先頭挿入ではヘッダが大文字
+> （`Z`/`Y`…）になり得る**（序数比較では `0-9 < A-Z < a-z` で正しく整列する）。Base36 が
+> 消すはずだった「大文字小文字の比較順」を先頭ヘッダで一部残すため、下の Q-E 検証は
+> **大文字ヘッダを含むランクも対象**にする（`app/data/ranking.py` の警告に詳細）。
+>
+> 🔴 **残作業（Q-E・実サービス限定）**: 実 Cosmos で `ORDER BY rank, id` が序数順と一致する
+> ことを確認する。`scripts/verify_rank_ordering.py` を用意した（末尾追加・大文字ヘッダの
+> 先頭挿入・同一ランク＋別 id を撒き、サーバーの並びと Python の序数ソートを突き合わせて
+> PASS/FAIL・後始末まで自動）。**実サービスでのみ意味を持つ（エミュレータ不可 — D-19）。**
+> 一度きりの独立ゲートとして扱い、CI には載せない。不一致なら提案書 06章のとおり浮動小数＋
+> 定期リバランスへ切り替え、その判断を `docs/decisions` に記録する。
+>
+>     COSMOS_ENDPOINT=... COSMOS_KEY=... COSMOS_DATABASE=... \
+>         python scripts/verify_rank_ordering.py
 
-- [ ] **実サービス**で `ORDER BY` が辞書順と一致することを確認済み（不一致なら方式切替を記録）
-- [ ] 文字列ランク（fractional indexing・ライブラリ利用・Base36）を採用
-- [ ] 生成はサーバー側（**専用エンドポイントに前後の要素IDを渡す** — D-20）
-- [ ] 1件を移動したとき更新ドキュメントが**1件だけ**である
-- [ ] `ORDER BY rank, id`（ULIDのidをタイブレーカー）で全端末の並びが一致する
+- [ ] **実サービス**で `ORDER BY` が辞書順と一致することを確認済み（不一致なら方式切替を記録）　→ `scripts/verify_rank_ordering.py`（**要 Azure 実行**。実装は完了、これが唯一の残作業）
+- [x] 文字列ランク（fractional indexing・ライブラリ利用・Base36）を採用　`app/data/ranking.py`（`fractional-indexing` 委譲・`RANK_DIGITS` Base36）
+- [x] 生成はサーバー側（**専用エンドポイントに前後の要素IDを渡す** — D-20）　`app/api/pbis.py`（`POST .../rank`・`RankMove{beforeId, afterId}`）
+- [x] 1件を移動したとき更新ドキュメントが**1件だけ**である　`reorder` は移動対象の `rank` だけを `repo.replace`（`test_reorder_updates_only_one_document`）
+- [x] `ORDER BY rank, id`（ULIDのidをタイブレーカー）で全端末の並びが一致する　サーバーが `DEFAULT_ORDER=(rank,id)` を保証（B-07/B-12。同一キーは id でタイブレーク）※実サービスでの序数保証は上の Q-E に依存
 
 ### ⬜ B-17 プロダクトバックログ画面　`依存: B-03, B-15, B-16`
 - [ ] PBIが優先順位順に並ぶ
@@ -610,6 +628,8 @@ PoC自体を無検証で進めないため、**V-1〜V-4 のテストは B-04 �
 
 ---
 
-_最終更新: 2026-07-28（B-15 PBIのCRUD API 完了。`app/api/` パッケージ化・`app/data/pbis.py`
-（状態遷移の純関数）・`app/api/pbis.py`（作成／取得／更新／論理削除・If-Match 必須・不正
-遷移を422で拒否）・OpenAPI から schema.d.ts 再生成。M4 に着手＝1/6。B-11 進行中）_
+_最終更新: 2026-07-28（B-16 並び替え（rank）実装完了。`app/data/ranking.py`（fractional
+indexing / Base36 の純関数）・作成時に末尾採番・`POST .../pbis/{id}/rank`（前後の要素 ID
+でサーバー生成・更新1件・422 violations）・OpenAPI から schema.d.ts 再生成。pytest 195 件緑。
+残るは実サービスでの照合順序検証 Q-E（`scripts/verify_rank_ordering.py`・要 Azure）のみ。
+B-11 進行中）_
