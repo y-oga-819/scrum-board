@@ -38,6 +38,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/products/{product_id}/pbis": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create
+         * @description PBI を1件作成する。状態は必ず ``new`` から始まる（提案書 図6）。
+         */
+        post: operations["create_api_products__product_id__pbis_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/products/{product_id}/pbis/{pbi_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get One
+         * @description PBI を1件取得する。存在しない／論理削除済みは 404（存在を漏らさない）。
+         */
+        get: operations["get_one_api_products__product_id__pbis__pbi_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete
+         * @description PBI を論理削除する（物理削除しない。D-07）。以後 GET は 404。
+         */
+        delete: operations["delete_api_products__product_id__pbis__pbi_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update
+         * @description PBI を部分更新する。``status`` を動かすときだけ状態遷移の正当性を確かめる。
+         */
+        patch: operations["update_api_products__product_id__pbis__pbi_id__patch"];
+        trace?: never;
+    };
     "/{full_path}": {
         parameters: {
             query?: never;
@@ -59,6 +107,21 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AcceptanceCriterion
+         * @description 完了条件チェックリストの1項目（提案書 04章）。編集は B-18。
+         */
+        AcceptanceCriterion: {
+            /**
+             * Checked
+             * @default false
+             */
+            checked: boolean;
+            /** Id */
+            id: string;
+            /** Text */
+            text: string;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -86,6 +149,96 @@ export interface components {
              * @default []
              */
             products: components["schemas"]["ProductSummary"][];
+        };
+        /**
+         * Pbi
+         * @description PBI の応答表現（提案書 04章のフィールド）。
+         *
+         *     保存ドキュメントから組み立てる。``_etag`` は本文に載せず ``ETag`` ヘッダで返すため
+         *     ``extra='ignore'`` で捨てる（単一ドキュメント応答の版はヘッダが正 — D-20）。
+         */
+        Pbi: {
+            /** Acceptancecriteria */
+            acceptanceCriteria: components["schemas"]["AcceptanceCriterion"][];
+            /** Completedat */
+            completedAt: string | null;
+            /** Completedsprintid */
+            completedSprintId: string | null;
+            /** Createdat */
+            createdAt: string;
+            /** Createdby */
+            createdBy: string;
+            /** Description */
+            description: string;
+            /** Estimate */
+            estimate: number | null;
+            /** Id */
+            id: string;
+            /** Isdeleted */
+            isDeleted: boolean;
+            /** Parentpbiid */
+            parentPbiId: string | null;
+            /** Productid */
+            productId: string;
+            /** Rank */
+            rank: string | null;
+            status: components["schemas"]["PbiStatus"];
+            /** Title */
+            title: string;
+            /** Type */
+            type: string;
+            /** Updatedat */
+            updatedAt: string;
+            /** Updatedby */
+            updatedBy: string;
+        };
+        /**
+         * PbiCreate
+         * @description PBI 作成の入力。``title`` 以外は任意（未設定は既定値）。
+         */
+        PbiCreate: {
+            /**
+             * Acceptancecriteria
+             * @default []
+             */
+            acceptanceCriteria: components["schemas"]["AcceptanceCriterion"][];
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /** Estimate */
+            estimate?: number | null;
+            /** Title */
+            title: string;
+        };
+        /**
+         * PbiStatus
+         * @description PBI の状態（提案書 04章・図6）。
+         *
+         *     タスクの ``todo`` / ``doing`` / ``done`` とは別の語彙を持つ。前進のみで、``done`` は
+         *     終端（タスクと違い完了取り消しの戻り遷移を持たない — 完了地は不変。提案書 図6）。
+         * @enum {string}
+         */
+        PbiStatus: "new" | "ready" | "inProgress" | "done";
+        /**
+         * PbiUpdate
+         * @description PBI 更新の入力（部分更新）。**送られたフィールドだけ**を反映する。
+         *
+         *     ``rank`` / ``parentPbiId`` / ``completedAt`` / ``completedSprintId`` は載せない。
+         *     それぞれ並び替え（B-16）・分割（B-19）・スプリント終了（B-25）が所有し、汎用 PATCH
+         *     では動かさない（クライアントに完了地やランクの規則を漏らさない）。
+         */
+        PbiUpdate: {
+            /** Acceptancecriteria */
+            acceptanceCriteria?: components["schemas"]["AcceptanceCriterion"][] | null;
+            /** Description */
+            description?: string | null;
+            /** Estimate */
+            estimate?: number | null;
+            status?: components["schemas"]["PbiStatus"] | null;
+            /** Title */
+            title?: string | null;
         };
         /**
          * Problem
@@ -205,6 +358,310 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MeResponse"];
+                };
+            };
+        };
+    };
+    create_api_products__product_id__pbis_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PbiCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Pbi"];
+                };
+            };
+            /** @description Problem */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_one_api_products__product_id__pbis__pbi_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pbi_id: string;
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Pbi"];
+                };
+            };
+            /** @description Problem */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Problem */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_api_products__product_id__pbis__pbi_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pbi_id: string;
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Problem */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Problem */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_api_products__product_id__pbis__pbi_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pbi_id: string;
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PbiUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Pbi"];
+                };
+            };
+            /** @description Problem */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
         };
