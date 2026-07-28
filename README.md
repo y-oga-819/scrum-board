@@ -62,3 +62,13 @@ make test-frontend   # Vitest（jsdom・ヘッドレス）
 ```
 
 `make help` で全ターゲットを一覧できる。
+
+## 開発への参加
+
+開発の流れ・ブランチ戦略・コミット規約・PR の書き方は
+[`CONTRIBUTING.md`](./CONTRIBUTING.md) にまとめている。実装の進捗は
+[`docs/progress.md`](./docs/progress.md) の PBI（`B-NN`）で追える。
+
+## ライセンス
+
+[MIT License](./LICENSE)。
