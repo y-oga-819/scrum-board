@@ -17,10 +17,10 @@ from collections.abc import Sequence
 
 from fastapi import APIRouter
 
-from . import meta
+from . import meta, pbis
 
 # main.py が順に include するルータ群。meta（横断）→ リソース別の順に並べる。
-# リソース別モジュール（pbis…）は各 PBI で足す。
-routers: Sequence[APIRouter] = (meta.router,)
+# リソース別モジュール（tasks・sprints…）は各 PBI で足す。
+routers: Sequence[APIRouter] = (meta.router, pbis.router)
 
 __all__ = ["routers"]

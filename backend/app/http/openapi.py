@@ -32,20 +32,21 @@ def _problem_component_schemas() -> dict[str, Any]:
 
 def problem_responses(
     *statuses: int, descriptions: Mapping[int, str] | None = None
-) -> dict[int, dict[str, Any]]:
+) -> dict[int | str, dict[str, Any]]:
     """エンドポイントの ``responses`` に展開する problem 応答の宣言を作る。
 
     例: ``@router.patch(..., responses=problem_responses(404, 412, 428))``。
     各ステータスに ``Problem`` を参照する ``application/problem+json`` を割り当てる。
+    戻り値の型は FastAPI の ``responses`` 引数（``dict[int | str, ...]``）に合わせる。
     """
     descriptions = descriptions or {}
-    return {
-        status: {
+    result: dict[int | str, dict[str, Any]] = {}
+    for status in statuses:
+        result[status] = {
             "description": descriptions.get(status, "Problem"),
             "content": {PROBLEM_MEDIA_TYPE: {"schema": {"$ref": "#/components/schemas/Problem"}}},
         }
-        for status in statuses
-    }
+    return result
 
 
 def build_openapi(app: FastAPI) -> dict[str, Any]:
