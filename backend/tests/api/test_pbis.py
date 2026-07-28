@@ -338,8 +338,7 @@ def _etag_of(client: TestClient, pbi_id: str) -> str:
 def _ranks(repo: InMemoryRepository) -> dict[str, str]:
     """パーティション内の PBI の id → rank（更新件数の検査に使う）。"""
     return {
-        doc["id"]: doc["rank"]
-        for doc in repo.query(product_id=PRODUCT, doc_type=DocumentType.PBI)
+        doc["id"]: doc["rank"] for doc in repo.query(product_id=PRODUCT, doc_type=DocumentType.PBI)
     }
 
 
