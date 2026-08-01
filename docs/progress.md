@@ -41,12 +41,12 @@
 | **M1** | ★**1ページがEntra IDで保護される**（Easy Authなし） | B-01 〜 B-06 | ✅ **6 / 6** |
 | **M2** | ★**認可まで通る**（非メンバーは403・初回サインインで自動参加） | B-07 〜 B-10 | ✅ **4 / 4** |
 | **M3** | 開発の土台（テスト/CI/API規約/リポジトリ規約） | B-11 〜 B-14 | 🟨 2 / 4（B-12・B-13 完了・B-11 進行中） |
-| **M4** | プロダクトバックログが運用できる | B-15 〜 B-20 | 🟨 1 / 6（B-15 完了・B-16 実装完了/Q-E 待ち・B-17 実装完了/E2E は B-20 待ち） |
+| **M4** | プロダクトバックログが運用できる | B-15 〜 B-20 | 🟨 2 / 6（B-15・B-16 完了・B-17 実装完了/E2E は B-20 待ち） |
 | **M5** | ★**スプリントが1周回る**（ここからドッグフーディング） | B-21 〜 B-26 | 0 / 6 |
 | **M6** | デイリースクラムがこの画面だけで完結する | B-27 〜 B-29 | 0 / 3 |
 | **M7** | 実運用に耐える | B-30 〜 B-31 | 0 / 2 |
 | **M8** | *（将来）* プロジェクトを自分たちで管理できる | B-32 〜 B-33 | 0 / 2 |
-| | | **合計** | **13 / 33** |
+| | | **合計** | **14 / 33** |
 
 > ★ **本プロジェクトの主題は「Easy Authを使わないEntra IDの認証・認可」のPoC**であり、
 > スクラムアプリはそれを実地で回すための題材を兼ねている（D-21）。
@@ -81,10 +81,10 @@ PoC自体を無検証で進めないため、**V-1〜V-4 のテストは B-04 �
 | ~~Q-B~~ | ~~`productId` の発生源とseeding~~ → **決定済み** [`D-21`](./decisions/D-21-bootstrap-and-migration.md) | B-08 | ✅ 2026-07-25 |
 | ~~Q-C~~ | ~~認可ブートストラップ~~ → **決定済み** [`D-21`](./decisions/D-21-bootstrap-and-migration.md) | B-10 | ✅ 2026-07-25 |
 | ~~Q-D~~ | ~~API共通規約~~ → **決定済み** [`D-20`](./decisions/D-20-api-conventions.md) | B-12 | ✅ 2026-07-25 |
-| Q-E | Cosmos の `ORDER BY` が辞書順と一致するか（提案書 Q-1）→ 検証スクリプト用意済み `scripts/verify_rank_ordering.py`（**要 Azure 実行**） | B-16 | B-16 の残作業（実装は完了） |
+| ~~Q-E~~ | ~~Cosmos の `ORDER BY` が辞書順と一致するか（提案書 Q-1）~~ → **検証済み**（実サービスで `ORDER BY rank, id` が序数順と一致することを確認。方式切替は不要） | B-16 | ✅ 2026-08-01 |
 | Q-F | 楽観排他 412 発生後のUX（再取得マージ／再操作促し） | B-26 | B-23着手前 |
 
-**🔴 Blocker はすべて解消済み。** 残る Q-E は実装時の検証、Q-F は B-23 着手時に決めれば足りる。
+**🔴 Blocker はすべて解消済み。** Q-E も検証済みで、残る Q-F は B-23 着手時に決めれば足りる。
 
 ### 決定の記録
 
@@ -401,8 +401,14 @@ PoC自体を無検証で進めないため、**V-1〜V-4 のテストは B-04 �
 - [x] 不正な状態遷移（new→ready→inProgress→done 以外）が弾かれる　`is_valid_transition`（前進の隣接＋据え置きのみ許可）→ 不正は 422＋`violations`（`rule=pbi-status-transition`）
 - [x] **`PATCH`/`DELETE` は `If-Match` 必須**（欠落は428・不一致は412 — D-20）　`require_if_match`（428）／`repo.replace`・`repo.soft_delete` の `if_match`（412）
 
-### 🟨 B-16 並び替え（rank）　`依存: B-07`
-> **実装は完了、残るは実サービスでの照合順序検証（Q-E）だけ（2026-07-28）。**
+### ✅ B-16 並び替え（rank）　`依存: B-07`
+> **完了（2026-08-01）。実サービスで並び替えの動作確認が取れ、照合順序検証（Q-E）も
+> 解消した。** 実 Cosmos で `ORDER BY rank, id` が序数順と一致することを確認済み（大文字
+> ヘッダを含むランクでも整列が壊れないこと・末尾追加／先頭挿入／同一ランク＋別 id の
+> 並びが Python の序数ソートと一致することを確認）。提案書 06章のフォールバック（浮動小数＋
+> 定期リバランス）への切り替えは不要と判断した。以下は実装完了時（2026-07-28）の記録。
+>
+> **実装（2026-07-28）:**
 > 文字列ランク（fractional indexing）を `app/data/ranking.py`（Base36・ライブラリ委譲）に、
 > 並び替えを専用エンドポイント `POST /api/products/{pid}/pbis/{id}/rank`（前後の要素 ID を
 > 受け取りサーバーで生成）に実装した。PBI は**作成時にバックログ末尾へ採番**し（全 PBI が
@@ -427,7 +433,7 @@ PoC自体を無検証で進めないため、**V-1〜V-4 のテストは B-04 �
 >     COSMOS_ENDPOINT=... COSMOS_KEY=... COSMOS_DATABASE=... \
 >         python scripts/verify_rank_ordering.py
 
-- [ ] **実サービス**で `ORDER BY` が辞書順と一致することを確認済み（不一致なら方式切替を記録）　→ `scripts/verify_rank_ordering.py`（**要 Azure 実行**。実装は完了、これが唯一の残作業）
+- [x] **実サービス**で `ORDER BY` が辞書順と一致することを確認済み（不一致なら方式切替を記録）　→ 実 Cosmos で並び替えの動作確認＋序数順一致を確認（Q-E 解消・方式切替は不要）。`scripts/verify_rank_ordering.py` を用意
 - [x] 文字列ランク（fractional indexing・ライブラリ利用・Base36）を採用　`app/data/ranking.py`（`fractional-indexing` 委譲・`RANK_DIGITS` Base36）
 - [x] 生成はサーバー側（**専用エンドポイントに前後の要素IDを渡す** — D-20）　`app/api/pbis.py`（`POST .../rank`・`RankMove{beforeId, afterId}`）
 - [x] 1件を移動したとき更新ドキュメントが**1件だけ**である　`reorder` は移動対象の `rank` だけを `repo.replace`（`test_reorder_updates_only_one_document`）
@@ -653,8 +659,6 @@ PoC自体を無検証で進めないため、**V-1〜V-4 のテストは B-04 �
 
 ---
 
-_最終更新: 2026-07-28（B-16 並び替え（rank）実装完了。`app/data/ranking.py`（fractional
-indexing / Base36 の純関数）・作成時に末尾採番・`POST .../pbis/{id}/rank`（前後の要素 ID
-でサーバー生成・更新1件・422 violations）・OpenAPI から schema.d.ts 再生成。pytest 195 件緑。
-残るは実サービスでの照合順序検証 Q-E（`scripts/verify_rank_ordering.py`・要 Azure）のみ。
-B-11 進行中）_
+_最終更新: 2026-08-01（B-16 並び替え（rank）を完了に更新。実サービスで並び替えの動作確認が
+取れ、`ORDER BY rank, id` が序数順と一致することを確認（Q-E 解消・方式切替は不要）。M4 は
+2/6。次は B-18（PBI詳細）に着手。B-11 進行中）_
