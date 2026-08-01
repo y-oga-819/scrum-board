@@ -4,6 +4,7 @@
 
 * :mod:`.meta` — 横断的ルート（``/api/health`` ``/api/me``）
 * :mod:`.pbis` — PBI の CRUD（``/api/products/{pid}/pbis``。B-15）
+* :mod:`.tasks` — タスクの CRUD（``/api/products/{pid}/tasks``。B-20）
 * :mod:`.backlog` — プロダクトバックログ画面の集約 GET（``/backlog``。B-17）
 
 各モジュールは自分の :class:`~fastapi.APIRouter` を公開し、ここで 1 つの
@@ -18,10 +19,10 @@ from collections.abc import Sequence
 
 from fastapi import APIRouter
 
-from . import backlog, meta, pbis
+from . import backlog, meta, pbis, tasks
 
 # main.py が順に include するルータ群。meta（横断）→ リソース別 → 画面集約の順に並べる。
-# リソース別モジュール（tasks・sprints…）・画面集約（board…）は各 PBI で足す。
-routers: Sequence[APIRouter] = (meta.router, pbis.router, backlog.router)
+# リソース別モジュール（sprints…）・画面集約（board…）は各 PBI で足す。
+routers: Sequence[APIRouter] = (meta.router, pbis.router, tasks.router, backlog.router)
 
 __all__ = ["routers"]
