@@ -22,10 +22,11 @@ from typing import Any
 
 import pytest
 
-# B-20 が「I-1〜I-5 を集約する単一のタスク検証関数」を置く先。実装時に B-20 が
-# 最終的なモジュール名・関数シグネチャを確定する。ここを1行合わせれば
-# 下の振る舞い検査が有効化される、という受け皿にしてある。
-VALIDATOR_MODULE = "app.tasks.validation"
+# B-20 が「I-1〜I-4 を集約する単一のタスク検証関数」を置いた先。既存の
+# ``app/data/<エンティティ>.py`` 規約（PBI のドメイン規則が ``app.data.pbis`` に
+# あるのと同じ）に合わせ、タスクの検証関数は ``app.data.tasks.check_invariants``
+# に実装した。この1行がそこを指すことで下の振る舞い検査が有効化される。
+VALIDATOR_MODULE = "app.data.tasks"
 
 
 @dataclass(frozen=True)
