@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 
 from app.api.backlog import router as backlog_router
 from app.api.pbis import router as pbis_router
+from app.api.tasks import router as tasks_router
 from app.auth import get_current_user_resolver
 from app.auth.resolver import AuthenticatedUser
 from app.data.fake import InMemoryRepository
@@ -25,6 +26,7 @@ STRANGER_OID = "oid-stranger"
 PRODUCT = "prd_sandbox"
 BACKLOG_URL = f"/api/products/{PRODUCT}/backlog"
 PBIS_URL = f"/api/products/{PRODUCT}/pbis"
+TASKS_URL = f"/api/products/{PRODUCT}/tasks"
 
 
 class _StubResolver:
@@ -41,8 +43,9 @@ def _build_app(repo: InMemoryRepository | None) -> FastAPI:
     app = FastAPI()
     install_error_handlers(app)
     app.state.repository = repo
-    # 書き込み（PBI 作成）でデータを用意し、集約 GET で読む。両ルータを載せる。
+    # 書き込み（PBI・タスク作成）でデータを用意し、集約 GET で読む。全ルータを載せる。
     app.include_router(pbis_router)
+    app.include_router(tasks_router)
     app.include_router(backlog_router)
     return app
 
@@ -138,6 +141,78 @@ def test_backlog_excludes_soft_deleted(client: TestClient) -> None:
 
     ids = [p["id"] for p in res.json()["pbis"]]
     assert ids == [b["id"]]  # 論理削除済みは集約に載らない（D-20）
+
+
+# --- 配下タスクの結合（B-20） ------------------------------------------------
+
+
+def _add_pbi_task(client: TestClient, pbi_id: str, title: str) -> dict:
+    res = client.post(TASKS_URL, json={"taskType": "pbi", "pbiId": pbi_id, "title": title})
+    assert res.status_code == 201, res.text
+    return res.json()
+
+
+def test_backlog_pbi_without_tasks_has_empty_list(client: TestClient) -> None:
+    _create(client, "A")
+
+    res = client.get(BACKLOG_URL)
+
+    assert res.json()["pbis"][0]["tasks"] == []
+
+
+def test_backlog_joins_pbi_tasks_under_their_pbi(client: TestClient) -> None:
+    a = _create(client, "A")
+    b = _create(client, "B")
+    t1 = _add_pbi_task(client, a["id"], "実装")
+    t2 = _add_pbi_task(client, a["id"], "テスト")
+    _add_pbi_task(client, b["id"], "別 PBI のタスク")
+
+    res = client.get(BACKLOG_URL)
+
+    pbis = {p["id"]: p for p in res.json()["pbis"]}
+    a_task_ids = [t["id"] for t in pbis[a["id"]]["tasks"]]
+    assert a_task_ids == [t1["id"], t2["id"]]  # rank 未設定なので作成順（id 昇順）
+    assert len(pbis[b["id"]]["tasks"]) == 1
+
+
+def test_backlog_tasks_carry_etag_for_if_match(client: TestClient) -> None:
+    # 配下タスクも _etag を本文で返す（ボード操作の If-Match に使う — D-20）。
+    a = _create(client, "A")
+    task = _add_pbi_task(client, a["id"], "実装")
+
+    res = client.get(BACKLOG_URL)
+
+    item = res.json()["pbis"][0]["tasks"][0]
+    assert item["_etag"]
+    patched = client.patch(
+        f"{TASKS_URL}/{task['id']}",
+        json={"status": "doing"},
+        headers={"If-Match": item["_etag"]},
+    )
+    assert patched.status_code == 200
+
+
+def test_backlog_excludes_team_tasks_from_pbi_join(client: TestClient) -> None:
+    # 未割当チームタスクは PBI 配下に混ざらない（露出は B-29）。
+    a = _create(client, "A")
+    _add_pbi_task(client, a["id"], "実装")
+    client.post(TASKS_URL, json={"taskType": "team", "title": "チーム作業"})
+
+    res = client.get(BACKLOG_URL)
+
+    titles = [t["title"] for t in res.json()["pbis"][0]["tasks"]]
+    assert titles == ["実装"]  # team タスクは束ねない
+
+
+def test_backlog_excludes_soft_deleted_tasks(client: TestClient) -> None:
+    a = _create(client, "A")
+    task = _add_pbi_task(client, a["id"], "消す")
+    etag = client.get(f"{TASKS_URL}/{task['id']}").headers["ETag"]
+    client.delete(f"{TASKS_URL}/{task['id']}", headers={"If-Match": etag})
+
+    res = client.get(BACKLOG_URL)
+
+    assert res.json()["pbis"][0]["tasks"] == []
 
 
 def test_backlog_by_non_member_is_forbidden(repo: InMemoryRepository) -> None:
