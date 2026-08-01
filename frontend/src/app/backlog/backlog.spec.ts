@@ -5,13 +5,14 @@ import { provideRouter } from '@angular/router';
 
 import { BacklogPage } from './backlog';
 import { BacklogPbi } from '../products/pbi.service';
+import { BacklogTask } from '../products/task.service';
 import { ProductService, ProductSummary } from '../products/product.service';
 
 const SANDBOX: ProductSummary = { productId: 'prd_sandbox', name: 'サンドボックス', role: 'member' };
 const BASE = `/api/products/${SANDBOX.productId}`;
 
-/** バックログ 1 行分のダミー（`_etag` を持つのが単一 Pbi との違い）。 */
-function pbi(id: string, title: string, rank: string): BacklogPbi {
+/** バックログ 1 行分のダミー（`_etag` と配下タスクを持つのが単一 Pbi との違い）。 */
+function pbi(id: string, title: string, rank: string, tasks: BacklogTask[] = []): BacklogPbi {
   return {
     id,
     type: 'pbi',
@@ -30,6 +31,34 @@ function pbi(id: string, title: string, rank: string): BacklogPbi {
     completedAt: null,
     completedSprintId: null,
     parentPbiId: null,
+    _etag: `"etag-${id}"`,
+    tasks,
+  };
+}
+
+/** PBI 配下タスクのダミー。 */
+function task(id: string, title: string, pbiId: string): BacklogTask {
+  return {
+    id,
+    type: 'task',
+    productId: SANDBOX.productId,
+    isDeleted: false,
+    createdAt: '2026-08-01T00:00:00Z',
+    createdBy: 'oid',
+    updatedAt: '2026-08-01T00:00:00Z',
+    updatedBy: 'oid',
+    taskType: 'pbi',
+    pbiId,
+    sprintId: null,
+    status: 'todo',
+    completedAt: null,
+    title,
+    todo: '',
+    memo: '',
+    assigneeId: null,
+    rank: null,
+    isBlocked: false,
+    blockedReason: '',
     _etag: `"etag-${id}"`,
   };
 }
@@ -191,5 +220,49 @@ describe('BacklogPage', () => {
     rowA.dispatchEvent(new Event('dragstart'));
     rowA.dispatchEvent(new Event('drop'));
     // 同じ行へのドロップは何も送らない（httpMock.verify() が余分な要求を検出する）。
+  });
+
+  // --- 配下タスク（B-20） ----------------------------------------------------
+
+  it('renders tasks nested under their PBI in the server order', () => {
+    const fixture = render([
+      pbi('pbi_a', 'A', '0|a:', [task('tsk_1', '実装', 'pbi_a'), task('tsk_2', 'テスト', 'pbi_a')]),
+    ]);
+    const [rowA] = rows(fixture);
+    const titles = Array.from(rowA.querySelectorAll('.task-title')).map((t) =>
+      t.textContent?.trim(),
+    );
+    expect(titles).toEqual(['実装', 'テスト']);
+  });
+
+  it('adds a task to a PBI via POST /tasks and reloads the backlog', () => {
+    const fixture = render([pbi('pbi_a', 'A', '0|a:')]);
+    const [rowA] = rows(fixture);
+
+    rowA.querySelector<HTMLButtonElement>('.add-task')!.click();
+    fixture.detectChanges();
+
+    const input = rowA.querySelector<HTMLInputElement>('input')!;
+    input.value = '実装';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    rowA
+      .querySelector<HTMLFormElement>('.task-form')!
+      .dispatchEvent(new Event('submit', { cancelable: true }));
+
+    const create = httpMock.expectOne(`${BASE}/tasks`);
+    expect(create.request.method).toBe('POST');
+    expect(create.request.body).toEqual({ taskType: 'pbi', pbiId: 'pbi_a', title: '実装' });
+    create.flush({});
+
+    // 作成後は集約 GET を引き直す（サーバーの並びを正とする）。
+    httpMock
+      .expectOne(`${BASE}/backlog`)
+      .flush({ pbis: [pbi('pbi_a', 'A', '0|a:', [task('tsk_1', '実装', 'pbi_a')])] });
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).querySelector('.task-title')?.textContent).toContain(
+      '実装',
+    );
   });
 });

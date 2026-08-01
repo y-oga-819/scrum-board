@@ -59,20 +59,59 @@
               (dragover)="onDragOver($event)"
               (drop)="onDrop(pbi)"
             >
-              <span class="handle" aria-hidden="true">⠿</span>
-              <span class="title">{{ pbi.title }}</span>
-              <label class="status">
-                <span class="visually-hidden">ステータス</span>
-                <select [value]="pbi.status" (change)="changeStatus(pbi, $event)">
-                  @for (option of statuses; track option.value) {
-                    <option [value]="option.value" [selected]="option.value === pbi.status">
-                      {{ option.label }}
-                    </option>
-                  }
-                </select>
-              </label>
-              <!-- 詳細（B-18）へドリルダウン。行のドラッグと競合しないよう自身の drag は無効化。 -->
-              <a class="detail-link" draggable="false" [routerLink]="['/backlog', pbi.id]">詳細</a>
+              <div class="pbi-main">
+                <span class="handle" aria-hidden="true">⠿</span>
+                <span class="title">{{ pbi.title }}</span>
+                <label class="status">
+                  <span class="visually-hidden">ステータス</span>
+                  <select [value]="pbi.status" (change)="changeStatus(pbi, $event)">
+                    @for (option of statuses; track option.value) {
+                      <option [value]="option.value" [selected]="option.value === pbi.status">
+                        {{ option.label }}
+                      </option>
+                    }
+                  </select>
+                </label>
+                <!-- 詳細（B-18）へドリルダウン。行のドラッグと競合しないよう自身の drag は無効化。 -->
+                <a class="detail-link" draggable="false" [routerLink]="['/backlog', pbi.id]">詳細</a>
+              </div>
+
+              <!-- 配下タスク（B-20）。並びの正はサーバー（GET /backlog が rank, id 順で束ねる）。 -->
+              <div class="pbi-tasks" draggable="false">
+                @if (pbi.tasks.length > 0) {
+                  <ul class="task-list">
+                    @for (task of pbi.tasks; track task.id) {
+                      <li class="task-row">
+                        <span class="task-status" [attr.data-status]="task.status"></span>
+                        <span class="task-title">{{ task.title }}</span>
+                      </li>
+                    }
+                  </ul>
+                }
+                @if (taskFormPbiId() === pbi.id) {
+                  <form
+                    class="task-form"
+                    (submit)="submitTask(pbi); $event.preventDefault()"
+                  >
+                    <label class="visually-hidden" [attr.for]="'task-title-' + pbi.id">
+                      タスク名
+                    </label>
+                    <input
+                      #taskInput
+                      [id]="'task-title-' + pbi.id"
+                      autocomplete="off"
+                      placeholder="タスク名"
+                      (input)="newTaskTitle = taskInput.value"
+                    />
+                    <button type="submit" class="primary">追加</button>
+                    <button type="button" (click)="cancelTask()">キャンセル</button>
+                  </form>
+                } @else {
+                  <button type="button" class="add-task" draggable="false" (click)="openTaskForm(pbi)">
+                    タスクを追加
+                  </button>
+                }
+              </div>
             </li>
           }
         </ol>

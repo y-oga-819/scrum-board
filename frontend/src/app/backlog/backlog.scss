@@ -141,9 +141,6 @@ code {
 }
 
 .pbi-row {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
   padding: 0.7rem 0.9rem;
   background: #fff;
   border: 1px solid #e2e4e8;
@@ -152,6 +149,12 @@ code {
 
   &:active {
     cursor: grabbing;
+  }
+
+  .pbi-main {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
   }
 
   .handle {
@@ -186,6 +189,99 @@ code {
 
     &:hover {
       text-decoration: underline;
+    }
+  }
+}
+
+// 配下タスク（B-20）。PBI 行の下にぶら下げ、ドラッグ並び替えの対象と視覚的に分ける。
+.pbi-tasks {
+  margin: 0.5rem 0 0;
+  padding: 0.5rem 0 0 1.85rem;
+  border-top: 1px solid #f0f1f4;
+  cursor: default;
+
+  .task-list {
+    margin: 0 0 0.4rem;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+
+  .task-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.88rem;
+    color: #3a3f47;
+  }
+
+  // 状態は色の点で控えめに示す（色は種別の区別のみ。警告色は使わない — P-1 / D-13）。
+  .task-status {
+    flex: none;
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 50%;
+    background: #c4c8ce;
+
+    &[data-status='doing'] {
+      background: #1f6feb;
+    }
+
+    &[data-status='done'] {
+      background: #2da44e;
+    }
+  }
+
+  .task-title {
+    overflow-wrap: anywhere;
+  }
+
+  .add-task {
+    padding: 0.3rem 0.7rem;
+    font: inherit;
+    font-size: 0.82rem;
+    color: #4a4f57;
+    background: #f5f6f8;
+    border: 1px solid #d0d3d9;
+    border-radius: 6px;
+    cursor: pointer;
+
+    &:hover {
+      background: #eef0f3;
+    }
+  }
+
+  .task-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+
+    input {
+      flex: 1 1 12rem;
+      font: inherit;
+      font-size: 0.88rem;
+      padding: 0.35rem 0.55rem;
+      border: 1px solid #d0d3d9;
+      border-radius: 6px;
+    }
+
+    .primary {
+      padding: 0.35rem 0.8rem;
+      font-size: 0.85rem;
+    }
+
+    button:not(.primary) {
+      padding: 0.35rem 0.7rem;
+      font: inherit;
+      font-size: 0.85rem;
+      color: #4a4f57;
+      background: #fff;
+      border: 1px solid #d0d3d9;
+      border-radius: 6px;
+      cursor: pointer;
     }
   }
 }
