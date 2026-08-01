@@ -90,11 +90,18 @@ class CosmosRepository:
         doc_type: DocumentType,
         equals: Mapping[str, object] | None = None,
     ) -> list[Document]:
-        # partition_key を渡さない＝全パーティション横断（SDK が自動でファンアウトする）。
+        # partition_key を渡さない＝全パーティション横断。この SDK は
+        # ``enable_cross_partition_query=True`` を明示しないと横断を有効にせず、
+        # ``BadRequest`` ("Cross partition query is required but disabled") を返す
+        # （既定は None＝無効）。フェイクでは表面化せず実サービスで初めて出る。
         # RU が高くスケールしないため、呼び出しは限定する（ポート docstring・D-21）。
         # 横断ソートは高価なので ORDER BY は付けない（並びは呼び出し側で決める）。
         sql, params = _build_query(doc_type, equals or {}, order_by=())
-        items = self._container.query_items(query=sql, parameters=params)
+        items = self._container.query_items(
+            query=sql,
+            parameters=params,
+            enable_cross_partition_query=True,
+        )
         return [dict(item) for item in items]
 
     def replace(
