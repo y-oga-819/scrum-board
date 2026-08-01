@@ -450,6 +450,13 @@ PoC自体を無検証で進めないため、**V-1〜V-4 のテストは B-04 �
 > （フロントで不変条件を再実装しない — D-20）。ドラッグはネイティブ HTML5 DnD で依存を
 > 増やさない。型は OpenAPI 生成（`schema.d.ts`）が正。`make test`（pytest 205 件＋Vitest
 > 44 件）・`make lint`・`make typecheck`・`make build` 緑。
+>
+> **繰り延べた作業は受け側 PBI の完了条件へ移譲済み**（宙に浮かせない）:
+> - 配下タスクの `/backlog` 結合 と **E2E フロー①の緑化**（タスク追加UI・サインイン経路）→ **B-20**
+> - 未割当チームタスクの `/backlog` 露出（`unassignedTeamTasks`）→ **B-29**
+>
+> いずれも `app/api/backlog.py` の集約に join point を用意してあり、追加時に PBI の並び契約を
+> 作り直さない（同じパーティションを型で舐めて束ねるだけ）。
 - [x] PBIが優先順位順に並ぶ　サーバーの `ORDER BY rank, id`（`list_backlog`）をそのまま描画・再ソートしない
 - [x] ドラッグで並び替えできる　ネイティブ DnD → 前後の要素 ID を `POST .../rank` に渡す（`If-Match` は各要素の `_etag`）
 - [x] ステータスを変更できる　`PATCH` で遷移（正当性判定はサーバー。不正は 422・problem 表示）
@@ -470,6 +477,8 @@ PoC自体を無検証で進めないため、**V-1〜V-4 のテストは B-04 �
 - [ ] I-4: 種別判定は `pbiId` の有無ではなく **`taskType`** で行う
 - [ ] `taskType='team'`（親PBIなし）でも作成できる
 - [ ] **B-11 の不変条件テーブル駆動テストの振る舞い検査を有効化する** — `app.tasks.validation` に `check_invariants(doc) -> list[str]`（違反した不変条件IDの列）を実装し、`backend/tests/invariants/` の `pytest.importorskip` による skip が外れて緑になる（D-19 の必須4領域の1つ。違反IDは B-12 の `violations` の `rule` と揃える）
+- [ ] **`GET /backlog` に配下タスクを結合する**（B-17 が集約の join point を用意済み — `app/api/backlog.py`）。PBI ごとに `tasks` を束ね、パーティションをもう一度型で舐めるだけで **N+1 にしない**（D-20：`/backlog` は PBI＋各PBIの配下タスク＋未割当チームタスクを返す。未割当チームタスクの露出は B-29）。フロントのバックログ画面（`frontend/src/app/backlog/`）は各 PBI 配下のタスクを表示する
+- [ ] **B-17 の E2E フロー①（サインイン→PBI作成→タスク追加, `frontend/e2e/signin-pbi-task.spec.ts`）の `test.fixme` を外して緑にする** — PBI 作成の導線（`PBI を追加`／`タイトル`／`保存`）は **B-17 で用意済み**。この PBI で「タスク追加UI」が載り、あわせてヘッドレスで通すサインイン経路（`playwright.config.ts` の宿題）を決める（D-19 主要フロー網羅。B-17 から明示的に繰り延べられた項目）
 
 ---
 
@@ -532,7 +541,7 @@ PoC自体を無検証で進めないため、**V-1〜V-4 のテストは B-04 �
 - [ ] 完了にできる
 
 ### ⬜ B-29 未割当のチームタスク　`依存: B-17, B-22`
-- [ ] スプリントから外したチームタスクがバックログ画面に現れる
+- [ ] スプリントから外したチームタスクがバックログ画面に現れる（**`GET /backlog` に `unassignedTeamTasks` を足す** — B-17 が集約の join point を用意済み `app/api/backlog.py`。`taskType='team'` かつ `sprintId=null` を束ねる）
 - [ ] **どこにも表示されない状態が存在しない**（唯一許容できない失敗 — D-16）
 - [ ] **B-11 の E2E フロー⑤（未割当チームタスクが現れ消えない, `frontend/e2e/unassigned-team-task.spec.ts`）の `test.fixme` を外して緑にする**（D-16「唯一許容できない失敗」の回帰テスト — D-19）
 
