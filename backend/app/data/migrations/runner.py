@@ -48,8 +48,20 @@ class Migration:
 
 
 def applied_versions(repo: Repository) -> set[str]:
-    """``_system`` に記録済みの ``migration`` から適用済みバージョン集合を得る。"""
-    records = repo.query(product_id=SYSTEM_PARTITION, doc_type=DocumentType.MIGRATION)
+    """``_system`` に記録済みの ``migration`` から適用済みバージョン集合を得る。
+
+    **``order_by`` を明示的に空にする。** 既定の ``ORDER BY rank, id``（``DEFAULT_ORDER``）
+    は、実 Cosmos では **``rank`` を持たないドキュメントを結果から除外する**。``mig_*`` は
+    ``rank`` を持たないため、既定順のままだと**常に空**を返し、適用済みが毎回リセットされて
+    マイグレーションを再適用→``create_product`` が 409 で落ちる。集合を作るだけで順序は
+    不要なので、``order_by=()`` で除外を避ける（フェイクは missing キーを許容するため
+    この差はエミュレータ／実サービスでしか出ない — Q-E と同種）。
+    """
+    records = repo.query(
+        product_id=SYSTEM_PARTITION,
+        doc_type=DocumentType.MIGRATION,
+        order_by=(),
+    )
     return {record["version"] for record in records}
 
 
