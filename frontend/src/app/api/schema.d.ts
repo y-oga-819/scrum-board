@@ -131,6 +131,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/products/{product_id}/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create
+         * @description タスクを1件作成する。状態は必ず ``todo`` から始まる（提案書 図5）。
+         *
+         *     ``taskType`` の整合（I-3・I-4）を作成前に検証し、``pbi`` タスクは親 PBI の実在も確かめる。
+         *     ``team`` タスク（親 PBI なし）も作成できる（B-20 の完了条件）。
+         */
+        post: operations["create_api_products__product_id__tasks_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/products/{product_id}/tasks/{task_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get One
+         * @description タスクを1件取得する。存在しない／論理削除済みは 404（存在を漏らさない）。
+         */
+        get: operations["get_one_api_products__product_id__tasks__task_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete
+         * @description タスクを論理削除する（物理削除しない。D-07）。以後 GET は 404。
+         */
+        delete: operations["delete_api_products__product_id__tasks__task_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update
+         * @description タスクを部分更新する。``status`` を動かすと ``completedAt`` を自動で刻む／消す。
+         */
+        patch: operations["update_api_products__product_id__tasks__task_id__patch"];
+        trace?: never;
+    };
     "/{full_path}": {
         parameters: {
             query?: never;
@@ -400,6 +451,121 @@ export interface components {
             afterId?: string | null;
             /** Beforeid */
             beforeId?: string | null;
+        };
+        /**
+         * Task
+         * @description タスクの応答表現（提案書 04章のフィールド）。
+         *
+         *     ``_etag`` は本文に載せず ``ETag`` ヘッダで返すため ``extra='ignore'`` で捨てる
+         *     （単一ドキュメント応答の版はヘッダが正 — D-20）。
+         */
+        Task: {
+            /** Assigneeid */
+            assigneeId: string | null;
+            /** Blockedreason */
+            blockedReason: string;
+            /** Completedat */
+            completedAt: string | null;
+            /** Createdat */
+            createdAt: string;
+            /** Createdby */
+            createdBy: string;
+            /** Id */
+            id: string;
+            /** Isblocked */
+            isBlocked: boolean;
+            /** Isdeleted */
+            isDeleted: boolean;
+            /** Memo */
+            memo: string;
+            /** Pbiid */
+            pbiId: string | null;
+            /** Productid */
+            productId: string;
+            /** Rank */
+            rank: string | null;
+            /** Sprintid */
+            sprintId: string | null;
+            status: components["schemas"]["TaskStatus"];
+            taskType: components["schemas"]["TaskType"];
+            /** Title */
+            title: string;
+            /** Todo */
+            todo: string;
+            /** Type */
+            type: string;
+            /** Updatedat */
+            updatedAt: string;
+            /** Updatedby */
+            updatedBy: string;
+        };
+        /**
+         * TaskCreate
+         * @description タスク作成の入力。``taskType`` が判別子で必ず持つ（I-4）。
+         *
+         *     ``taskType='pbi'`` なら ``pbiId`` が必須（I-3）、``taskType='team'`` なら ``pbiId`` は
+         *     ``null``（I-4）。整合はサーバーが :func:`~app.data.tasks.check_invariants` で確かめる。
+         *     ``sprintId`` / ``rank`` / ``status`` は入力に取らない（プランニング B-22・ボード B-23 が
+         *     所有し、作成時は必ず ``todo`` / ``sprintId=null``）。
+         */
+        TaskCreate: {
+            /** Assigneeid */
+            assigneeId?: string | null;
+            /**
+             * Memo
+             * @default
+             */
+            memo: string;
+            /** Pbiid */
+            pbiId?: string | null;
+            taskType: components["schemas"]["TaskType"];
+            /** Title */
+            title: string;
+            /**
+             * Todo
+             * @default
+             */
+            todo: string;
+        };
+        /**
+         * TaskStatus
+         * @description タスクの状態（提案書 図5）。
+         *
+         *     PBI の状態（``new`` … ``done``）とは別の語彙。ボード上を ``todo`` / ``doing`` /
+         *     ``done`` の間で自由に行き来する（PBI と違い一方向ではない — 完了取り消しがある。
+         *     その戻し遷移で ``completedAt`` を ``null`` へ戻すのが I-1・I-2）。
+         * @enum {string}
+         */
+        TaskStatus: "todo" | "doing" | "done";
+        /**
+         * TaskType
+         * @description タスクの種別（提案書 04章・図5）。**判別子であり、必ず持つ**。
+         * @enum {string}
+         */
+        TaskType: "pbi" | "team";
+        /**
+         * TaskUpdate
+         * @description タスク更新の入力（部分更新）。**送られたフィールドだけ**を反映する。
+         *
+         *     ``taskType`` / ``pbiId`` は載せない（作成時に確定する判別子。後から種別を変えると
+         *     バックログの束ね方 I-3・I-4 が崩れる）。``completedAt`` も載せない — ``status`` を
+         *     ``done`` に動かすとサーバーが自動で刻む（:func:`~app.data.tasks.completion_changes`）。
+         *     ``sprintId`` はプランニング（B-22）、``rank`` はボード（B-23）が専用経路で動かす。
+         */
+        TaskUpdate: {
+            /** Assigneeid */
+            assigneeId?: string | null;
+            /** Blockedreason */
+            blockedReason?: string | null;
+            /** Isblocked */
+            isBlocked?: boolean | null;
+            /** Memo */
+            memo?: string | null;
+            status?: components["schemas"]["TaskStatus"] | null;
+            /** Title */
+            title?: string | null;
+            /** Todo */
+            todo?: string | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -869,6 +1035,310 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Pbi"];
+                };
+            };
+            /** @description Problem */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_api_products__product_id__tasks_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaskCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Task"];
+                };
+            };
+            /** @description Problem */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_one_api_products__product_id__tasks__task_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: string;
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Task"];
+                };
+            };
+            /** @description Problem */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Problem */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_api_products__product_id__tasks__task_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: string;
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Problem */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Problem */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_api_products__product_id__tasks__task_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: string;
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaskUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Task"];
                 };
             };
             /** @description Problem */
