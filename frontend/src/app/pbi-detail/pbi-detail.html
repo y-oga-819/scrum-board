@@ -1,0 +1,116 @@
+<main class="detail">
+  <header class="detail-header">
+    <a class="back-link" routerLink="/backlog">← バックログへ</a>
+    @if (selectedProduct(); as product) {
+      <p class="product">{{ product.name }}</p>
+    }
+  </header>
+
+  @if (errorMessage()) {
+    <p class="error" role="alert">{{ errorMessage() }}</p>
+  }
+
+  @switch (state()) {
+    @case ('loading') {
+      <p class="hint">読み込み中…</p>
+    }
+    @case ('no-product') {
+      <p class="hint">
+        どのプロダクトにも属していません。管理者に招待を依頼してください（PBI <code>B-10</code>）。
+      </p>
+    }
+    @case ('not-found') {
+      <p class="hint">
+        PBI が見つかりません。削除されたか、選択中のプロダクトに属していない可能性があります。
+      </p>
+    }
+    @case ('error') {
+      <p class="hint">再読み込みしてください。</p>
+    }
+    @case ('ready') {
+      <form class="detail-form" (submit)="save(); $event.preventDefault()">
+        <div class="field">
+          <label for="pbi-title">タイトル</label>
+          <input
+            id="pbi-title"
+            class="title-input"
+            autocomplete="off"
+            [value]="title()"
+            (input)="onTitleInput($any($event.target).value)"
+          />
+        </div>
+
+        <div class="field">
+          <label for="pbi-description">概要</label>
+          <textarea
+            id="pbi-description"
+            rows="6"
+            [value]="description()"
+            (input)="onDescriptionInput($any($event.target).value)"
+          ></textarea>
+        </div>
+
+        <fieldset class="field criteria">
+          <legend>完了条件</legend>
+          @if (criteria().length === 0) {
+            <p class="hint criteria-empty">完了条件はまだありません。</p>
+          } @else {
+            <ul class="criteria-list">
+              @for (c of criteria(); track c.id) {
+                <li class="criterion">
+                  <input
+                    type="checkbox"
+                    class="criterion-check"
+                    [attr.aria-label]="'完了条件を満たした'"
+                    [checked]="c.checked"
+                    (change)="toggleCriterion(c.id, $any($event.target).checked)"
+                  />
+                  <input
+                    type="text"
+                    class="criterion-text"
+                    autocomplete="off"
+                    placeholder="完了条件を入力"
+                    [value]="c.text"
+                    (input)="editCriterionText(c.id, $any($event.target).value)"
+                  />
+                  <button
+                    type="button"
+                    class="criterion-remove"
+                    aria-label="この完了条件を削除"
+                    (click)="removeCriterion(c.id)"
+                  >
+                    ×
+                  </button>
+                </li>
+              }
+            </ul>
+          }
+          <button type="button" class="add-criterion" (click)="addCriterion()">
+            + 完了条件を追加
+          </button>
+        </fieldset>
+
+        <div class="field estimate">
+          <label for="pbi-estimate">見積り（任意）</label>
+          <input
+            id="pbi-estimate"
+            type="number"
+            min="0"
+            inputmode="numeric"
+            autocomplete="off"
+            [value]="estimateInput()"
+            (input)="onEstimateInput($any($event.target).value)"
+          />
+          <span class="hint estimate-hint">未設定でも構いません。</span>
+        </div>
+
+        <div class="actions">
+          <button type="submit" class="primary" [disabled]="saving()">保存</button>
+          @if (savedNotice()) {
+            <span class="saved" role="status">保存しました。</span>
+          }
+        </div>
+      </form>
+    }
+  }
+</main>

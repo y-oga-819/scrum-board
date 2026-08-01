@@ -177,6 +177,17 @@ code {
     border-radius: 6px;
     cursor: pointer;
   }
+
+  .detail-link {
+    flex: none;
+    color: #1f6feb;
+    font-size: 0.85rem;
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
 }
 
 .visually-hidden {

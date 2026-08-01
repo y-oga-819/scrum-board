@@ -71,6 +71,8 @@
                   }
                 </select>
               </label>
+              <!-- 詳細（B-18）へドリルダウン。行のドラッグと競合しないよう自身の drag は無効化。 -->
+              <a class="detail-link" draggable="false" [routerLink]="['/backlog', pbi.id]">詳細</a>
             </li>
           }
         </ol>
