@@ -18,6 +18,8 @@ from typing import Any
 
 from azure.cosmos import ContainerProxy, DatabaseProxy, PartitionKey
 
+from .repository import DEFAULT_ORDER
+
 CONTAINER_NAME = "documents"
 PARTITION_KEY_PATH = "/productId"
 
@@ -29,17 +31,33 @@ INDEX_EXCLUDED_PATHS: tuple[str, ...] = (
 )
 
 
+def default_order_composite_index() -> list[dict[str, str]]:
+    """``DEFAULT_ORDER`` の ``ORDER BY`` を実 Cosmos で処理させる複合インデックス。
+
+    Repository は全クエリに ``ORDER BY c.rank, c.id`` を付ける（``DEFAULT_ORDER`` /
+    D-20）。Cosmos は **複数プロパティの ``ORDER BY`` を複合インデックス無しでは
+    処理できず**、`BadRequest`（"does not have a corresponding composite index"）を
+    返す。フェイクでもエミュレータの点クエリでも表面化せず、実サービスで初めて出る
+    （Q-E が拾うはずだった穴）。``DEFAULT_ORDER`` から生成して**並び順の定義と索引を
+    ずらさない**。昇順1本で、その完全な逆順（降順）も同じ索引で賄える。
+    """
+    return [{"path": f"/{field}", "order": "ascending"} for field in DEFAULT_ORDER]
+
+
 def container_indexing_policy() -> dict[str, Any]:
-    """除外パスを設定したインデックスポリシー。
+    """除外パスと複合インデックスを設定したインデックスポリシー。
 
     既定の「全パスを索引」を保ちつつ、長文3フィールドだけを除外する。
     ``/*`` を includedPaths に残すことで、他フィールドは従来どおり索引される。
+    加えて ``DEFAULT_ORDER``（``rank, id``）の ``ORDER BY`` を実 Cosmos が処理できるよう
+    複合インデックスを載せる（:func:`default_order_composite_index`）。
     """
     return {
         "indexingMode": "consistent",
         "automatic": True,
         "includedPaths": [{"path": "/*"}],
         "excludedPaths": [{"path": path} for path in INDEX_EXCLUDED_PATHS],
+        "compositeIndexes": [default_order_composite_index()],
     }
 
 
