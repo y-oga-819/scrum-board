@@ -319,7 +319,40 @@ registered: product=prd_scrum_board oid=<oid> role=admin
 | product API が 503 | repo=None（DB 無し起動） | 同上 |
 | 起動失敗 / コンテナ作成で例外 | キー誤り・`disableLocalAuth=true`・`publicNetwork=Disabled` | Step 0 の各項目 |
 | ログに「database not found」 | Step 2（DB 作成）未実施 | Step 2 |
+| 起動が `exit code 3` / Traceback に `CosmosHttpResponseError (BadRequest) … composite index` | `ORDER BY rank, id` を処理する複合インデックスが無い（実サービス限定） | 下記「複合インデックス」節。コード修正がデプロイ済みかを確認 |
 | Data Explorer がグレー | アカウントが `Failed` / ネットワーク制限 / キー無効 / ブラウザ | Step 0 → 該当すれば Step 1 |
+
+## 複合インデックス（`ORDER BY rank, id` — 実サービス限定の落とし穴）
+
+Repository は全クエリに `ORDER BY c.rank, c.id` を付ける（`DEFAULT_ORDER`・D-20）。実 Cosmos は
+**複数プロパティの `ORDER BY` を複合インデックス無しでは処理できず** `BadRequest`
+（"does not have a corresponding composite index"）を返す。フェイクでもエミュレータの点クエリでも
+出ず、**実サービスで初めて出る**（Q-E が拾うはずだった穴）。本リポジトリでは次の2点をコードで解決済み:
+
+1. `documents` のインデックスポリシーに `(rank ASC, id ASC)` の複合インデックスを載せる
+   （`app/data/provisioning.py`）。**新規作成されるコンテナ**に効く。
+2. マイグレーション確認クエリは `rank` を持たない `mig_*` を除外しないよう `order_by=()` に
+   する（`app/data/migrations/runner.py`）。→ **起動と `GET /api/me` は複合インデックス無しでも通る**。
+
+> つまり、**起動・サインイン・所属表示までは複合インデックス無しでも動く**（起動時のクエリは
+> `order_by=()` に直したため）。複合インデックスが要るのは **PBI 一覧を `ORDER BY rank, id` で
+> 引く場面（B-17）だけ**。
+
+**既にある `documents` コンテナ**は `create_container_if_not_exists` が冪等なため、コード修正を
+デプロイしても**インデックスポリシーは更新されない**。PBI 一覧を使う前に、既存コンテナへ複合
+インデックスを足す（データが無ければ作り直しでもよい）:
+
+```bash
+# 既存コンテナのインデックスポリシーを更新（複合インデックスを追加）
+az cosmosdb sql container update \
+  --account-name cosmos-scrum-board -g rg-scrum-board \
+  --database-name scrumboard --name documents \
+  --idx '{"indexingMode":"consistent","automatic":true,"includedPaths":[{"path":"/*"}],"excludedPaths":[{"path":"/description/?"},{"path":"/memo/?"},{"path":"/minutes/?"}],"compositeIndexes":[[{"path":"/rank","order":"ascending"},{"path":"/id","order":"ascending"}]]}'
+```
+
+> または Data Explorer → `documents` → Settings → Indexing Policy に上の JSON を貼って Save。
+> データが無いなら `az cosmosdb sql container delete ... --name documents` して、修正済みコードの
+> 次回起動で正しいポリシー付きに作り直させてもよい（`ensure_container` が複合インデックス込みで作る）。
 
 ## 再現性についての申し送り
 
