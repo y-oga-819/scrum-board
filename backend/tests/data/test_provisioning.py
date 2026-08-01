@@ -10,7 +10,9 @@ from app.data.provisioning import (
     INDEX_EXCLUDED_PATHS,
     PARTITION_KEY_PATH,
     container_indexing_policy,
+    default_order_composite_index,
 )
+from app.data.repository import DEFAULT_ORDER
 
 
 def test_partition_key_is_product_id() -> None:
@@ -29,3 +31,15 @@ def test_indexing_policy_still_indexes_everything_else() -> None:
     policy = container_indexing_policy()
     included = {p["path"] for p in policy["includedPaths"]}
     assert "/*" in included
+
+
+def test_indexing_policy_has_composite_index_for_default_order() -> None:
+    # Repository は全クエリに ``ORDER BY c.rank, c.id`` を付ける。実 Cosmos は複合
+    # インデックスが無いと BadRequest を返すため、DEFAULT_ORDER と一致する複合
+    # インデックスを必ず載せる（実サービスで初めて出た不具合の回帰）。
+    policy = container_indexing_policy()
+    composites = policy["compositeIndexes"]
+    expected = [{"path": f"/{field}", "order": "ascending"} for field in DEFAULT_ORDER]
+    assert expected in composites
+    # 生成関数も DEFAULT_ORDER から導出され、並び順の定義とずれない。
+    assert default_order_composite_index() == expected
