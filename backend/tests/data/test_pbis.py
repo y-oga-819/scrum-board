@@ -145,3 +145,29 @@ def test_last_rank_is_none_on_empty_partition(repo: InMemoryRepository) -> None:
     from app.data.pbis import last_rank
 
     assert last_rank(repo, PRODUCT) is None
+
+
+# --- バックログ集約（B-17） --------------------------------------------------
+
+
+def test_list_backlog_orders_by_rank(repo: InMemoryRepository) -> None:
+    from app.data.pbis import list_backlog
+
+    titles = ["a", "b", "c"]
+    for title in titles:
+        create_pbi(repo, product_id=PRODUCT, actor=ACTOR, title=title)
+
+    # 末尾採番なので作成順 = rank 順 = 優先順位順。並びの正はサーバー（D-20）。
+    assert [doc["title"] for doc in list_backlog(repo, PRODUCT)] == titles
+
+
+def test_list_backlog_excludes_deleted(repo: InMemoryRepository) -> None:
+    from app.data.pbis import list_backlog
+
+    kept = create_pbi(repo, product_id=PRODUCT, actor=ACTOR, title="残す")
+    dropped = create_pbi(repo, product_id=PRODUCT, actor=ACTOR, title="消す")
+    repo.soft_delete(
+        product_id=PRODUCT, doc_id=dropped["id"], actor=ACTOR, if_match=dropped["_etag"]
+    )
+
+    assert [doc["id"] for doc in list_backlog(repo, PRODUCT)] == [kept["id"]]

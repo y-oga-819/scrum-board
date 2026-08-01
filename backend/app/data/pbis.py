@@ -134,6 +134,18 @@ def create_pbi(
     )
 
 
+def list_backlog(repo: Repository, product_id: str) -> list[Document]:
+    """バックログの PBI を**優先順位順**（``rank, id``）で返す（B-17・D-20）。
+
+    プロダクトバックログ画面（画面A）が 1 往復で読む集約の土台。並びの正はサーバーが
+    保証し（``DEFAULT_ORDER=(rank, id)``。フロントで再ソートしない — D-20）、論理削除済みは
+    ポートが常に除外する。パーティションを 1 回舐めるだけで、``PBI 一覧 → 各 PBI のタスク``の
+    N+1 にはしない（配下タスク・未割当チームタスクの結合は B-20 のタスク層が入った時点で
+    この集約へ足す。PBI の並び自体はここで確定する）。
+    """
+    return repo.query(product_id=product_id, doc_type=DocumentType.PBI)
+
+
 def get_pbi(repo: Repository, *, product_id: str, pbi_id: str) -> Document | None:
     """``product_id`` パーティションから PBI をポイントリードする。
 

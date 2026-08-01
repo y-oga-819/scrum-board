@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { provideRouter } from '@angular/router';
 import { HomePage } from './home';
 import { AuthService } from '../auth/auth.service';
 import { ProductSummary } from '../products/product.service';
@@ -34,6 +35,7 @@ describe('HomePage', () => {
       providers: [
         provideHttpClient(),
         provideHttpClientTesting(),
+        provideRouter([]),
         { provide: AuthService, useValue: authStub },
       ],
     }).compileComponents();
