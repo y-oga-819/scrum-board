@@ -65,4 +65,42 @@ describe('PbiService', () => {
 
     httpMock.expectOne(`${BASE}/pbis/pbi%2Fodd%20id`).flush({});
   });
+
+  it('reads a single PBI observing the response so the ETag header is available (B-18)', () => {
+    let etag: string | null = null;
+    service.getOne(PRODUCT, 'pbi_1').subscribe((res) => {
+      etag = res.headers.get('ETag');
+    });
+
+    const req = httpMock.expectOne(`${BASE}/pbis/pbi_1`);
+    expect(req.request.method).toBe('GET');
+    // 単一 GET の版は本文でなくヘッダで返る（D-20）。応答全体を観測して取り出せる。
+    req.flush({ id: 'pbi_1' }, { headers: { ETag: '"etag-1"' } });
+    expect(etag).toBe('"etag-1"');
+  });
+
+  it('patches detail fields with If-Match and surfaces the new ETag (B-18)', () => {
+    let etag: string | null = null;
+    service
+      .update(PRODUCT, 'pbi_1', '"etag-1"', {
+        description: '概要',
+        estimate: 3,
+        acceptanceCriteria: [{ id: 'ac_1', text: '条件', checked: false }],
+      })
+      .subscribe((res) => {
+        etag = res.headers.get('ETag');
+      });
+
+    const req = httpMock.expectOne(`${BASE}/pbis/pbi_1`);
+    expect(req.request.method).toBe('PATCH');
+    expect(req.request.headers.get('If-Match')).toBe('"etag-1"');
+    expect(req.request.body).toEqual({
+      description: '概要',
+      estimate: 3,
+      acceptanceCriteria: [{ id: 'ac_1', text: '条件', checked: false }],
+    });
+    // 更新後の版がヘッダで返り、続けて編集できるよう呼び出し側へ運ばれる。
+    req.flush({ id: 'pbi_1' }, { headers: { ETag: '"etag-2"' } });
+    expect(etag).toBe('"etag-2"');
+  });
 });

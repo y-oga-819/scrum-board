@@ -10,7 +10,7 @@
  * 解決しないのと同じく、URL に明示する — D-20）。楽観排他は `If-Match` 必須で、値は集約
  * GET の各要素が持つ `_etag`（このサービスは規則を判断せず、サーバーが返した版を運ぶだけ）。
  */
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import type { Observable } from 'rxjs';
 
@@ -24,6 +24,10 @@ export type BacklogPbi = components['schemas']['BacklogPbi'];
 export type Pbi = components['schemas']['Pbi'];
 /** PBI 作成の入力。 */
 export type PbiCreate = components['schemas']['PbiCreate'];
+/** PBI の部分更新の入力（概要・完了条件・見積り等。B-18）。 */
+export type PbiUpdate = components['schemas']['PbiUpdate'];
+/** 完了条件チェックリストの1項目。 */
+export type AcceptanceCriterion = components['schemas']['AcceptanceCriterion'];
 /** PBI の状態（`new` / `ready` / `inProgress` / `done`）。 */
 export type PbiStatus = components['schemas']['PbiStatus'];
 /** 並び替えの移動先（前後の要素 ID）。 */
@@ -50,6 +54,40 @@ export class PbiService {
   /** PBI を 1 件作成する。状態は必ずサーバー側で `new` から始まる。 */
   create(productId: string, body: PbiCreate): Observable<Pbi> {
     return this.http.post<Pbi>(this.base(productId), body);
+  }
+
+  /**
+   * PBI を 1 件取得する（詳細画面の初期表示。B-18）。
+   *
+   * 単一ドキュメント応答の版は**本文でなく `ETag` ヘッダ**で返る（集約 GET の各要素が
+   * `_etag` を持つのとは非対称 — D-20）。以降の更新に載せる `If-Match` を取り出せるよう、
+   * 本文だけでなく**応答全体**（`HttpResponse`）を観測して返す。
+   */
+  getOne(productId: string, pbiId: string): Observable<HttpResponse<Pbi>> {
+    return this.http.get<Pbi>(`${this.base(productId)}/${encodeURIComponent(pbiId)}`, {
+      observe: 'response',
+    });
+  }
+
+  /**
+   * PBI の詳細フィールド（概要・完了条件・見積り・タイトル）を部分更新する（`PATCH`。B-18）。
+   *
+   * `etag` は対象の版（`If-Match` 必須。欠落は 428・不一致は 412）。`changes` に載せた
+   * フィールドだけが反映される（`rank` / `parentPbiId` / 完了地はサーバーが載せさせない）。
+   * 応答は更新後の PBI と**新しい `ETag` ヘッダ**なので、`getOne` と同じく応答全体を返し、
+   * 呼び出し側が続けて編集できるよう版を運ぶ。
+   */
+  update(
+    productId: string,
+    pbiId: string,
+    etag: string,
+    changes: PbiUpdate,
+  ): Observable<HttpResponse<Pbi>> {
+    return this.http.patch<Pbi>(
+      `${this.base(productId)}/${encodeURIComponent(pbiId)}`,
+      changes,
+      { headers: { 'If-Match': etag }, observe: 'response' },
+    );
   }
 
   /**
