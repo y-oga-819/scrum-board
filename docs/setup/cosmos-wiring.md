@@ -8,7 +8,7 @@
 - product スコープの API（`/api/products/{pid}/…`）は `require_member` が repo=None で
   **503** を返す（B-15/B-16 を本番で確認できない）。
 
-この手順書は、**Cosmos を配線して認証だけの状態から「所属あり」まで点灯させる**ための
+この手順書は、**Cosmos を用意・配線して認証だけの状態から「所属あり」まで点灯させる**ための
 一度きりの作業をまとめたもの。az CLI を主にし（Data Explorer がグレーでも進められる）、
 GUI でやる場合の場所も併記する。
 
@@ -18,19 +18,39 @@ GUI でやる場合の場所も併記する。
 
 ---
 
-## 0. 値の確認（最初に1回）
+## 0. 値と状態の確認（最初に1回）
 
-以降で使うリソース名・接続値を確定させる。**名前は環境で違う**ので、既定値
-（`rg-scrum-board` / `scrum-board-yoga` / `cosmos-scrum-board` / `scrumboard`）を鵜呑みに
-せず、下のコマンドで実物を確認する。
+以降で使うリソース名・接続値を確定させ、**Cosmos アカウントが「使える状態」か**を先に見る。
+名前は環境で違うので、既定値（`rg-scrum-board` / `scrum-board-yoga` / `cosmos-scrum-board` /
+`scrumboard`）を鵜呑みにせず実物を確認する。
 
 ```bash
-# Cosmos アカウントと所属 RG・エンドポイント
-az cosmosdb list --query "[].{name:name, rg:resourceGroup, endpoint:documentEndpoint}" -o table
-
-# App Service と所属 RG・ホスト名
+# App Service と所属 RG・ホスト名（az が正しいサブスクを見ているかの確認も兼ねる）
 az webapp list --query "[].{name:name, rg:resourceGroup, host:defaultHostName}" -o table
 ```
+
+> ⚠️ **`az cosmosdb list` は当てにしない。** 失敗状態のアカウントや API バージョンの都合で
+> **存在するのに空を返す**ことがある。存在確認は型指定の resource list か、名前指定の
+> `show` を使う:
+>
+> ```bash
+> az resource list --resource-type Microsoft.DocumentDB/databaseAccounts \
+>   --query "[].{name:name, rg:resourceGroup}" -o table
+> ```
+
+Cosmos アカウントの**状態**を名前指定で確認する（ここが今回の肝）:
+
+```bash
+az cosmosdb show -g rg-scrum-board -n cosmos-scrum-board \
+  --query "{state:provisioningState, disableLocalAuth:disableLocalAuth, publicNetwork:publicNetworkAccess, endpoint:documentEndpoint}" -o table
+```
+
+- `state` = **`Succeeded`** … 使える。→ **Step 2**（DB 作成）へ進む
+- `state` = **`Failed`** … 作成が途中で失敗した器が残っている。**Step 1 で削除して作り直す**
+- `NotFound` 系エラー … アカウントが無い。**Step 1 で新規作成する**
+- `disableLocalAuth` が `true` … キー方式が使えない。下記で解除するか Managed ID へ（B-31）
+- `publicNetwork` が `Disabled` … App Service から到達できない。公開アクセスを許可するか
+  VNet 統合が要る
 
 この手順書では以下を例として使う（自分の値に読み替える）:
 
@@ -41,22 +61,10 @@ az webapp list --query "[].{name:name, rg:resourceGroup, host:defaultHostName}" 
 | App Service | `scrum-board-yoga` | — |
 | データベース名 | `scrumboard` | `COSMOS_DATABASE` |
 | エンドポイント | `https://cosmos-scrum-board.documents.azure.com:443/` | `COSMOS_ENDPOINT` |
-| プライマリキー | （手順2で取得） | `COSMOS_KEY` |
+| プライマリキー | （Step 3 で取得） | `COSMOS_KEY` |
 
-**キー認証が有効かも先に確認する**（`disableLocalAuth=true` だとキー方式は使えず、
-Data Explorer がグレーな原因にもなる）:
-
-```bash
-az cosmosdb show -g rg-scrum-board -n cosmos-scrum-board \
-  --query "{state:provisioningState, disableLocalAuth:disableLocalAuth, publicNetwork:publicNetworkAccess}" -o table
-```
-
-- `state` が `Succeeded` … 作成完了（`Creating` ならまだ待つ）
-- `disableLocalAuth` が `true` または表示 … キー禁止。下で解除するか Managed ID へ（B-31）
-- `publicNetwork` が `Disabled` … App Service から到達できない。公開アクセスを許可するか
-  VNet 統合が要る
-
-キー認証を解除する場合（PoC 向けの最短。恒久運用なら Managed ID を検討）:
+キー認証を解除する場合（`disableLocalAuth=true` のとき。PoC 向けの最短。恒久運用なら
+Managed ID を検討）:
 
 ```bash
 az resource update --ids $(az cosmosdb show -g rg-scrum-board -n cosmos-scrum-board --query id -o tsv) \
@@ -65,7 +73,58 @@ az resource update --ids $(az cosmosdb show -g rg-scrum-board -n cosmos-scrum-bo
 
 ---
 
-## Step 1. データベース `scrumboard` を作る（コンテナは作らない）
+## Step 1. Cosmos アカウントを用意する（無い／`Failed` のとき）
+
+**なぜ**: 後続（DB 作成・アプリの接続）は**使える状態（`Succeeded`）のアカウント**を前提に
+する。作成が途中で失敗した器（`Failed`）は endpoint も払い出されず、Data Explorer もグレーに
+なり、DB 作成は `BadRequest`（"failed provisioning state … delete before recreate"）で弾かれる。
+Azure は失敗状態のアカウントを**その場で修復できない**ので、**削除して作り直す**しかない。
+
+> Step 0 で `state=Succeeded` だったなら、このステップは**丸ごとスキップ**して Step 2 へ。
+
+### 1-a.（`Failed` のときだけ）失敗した器を削除する
+
+中身は無い（一度も使える状態になっていない）ので削除は安全。
+
+```bash
+az cosmosdb delete -g rg-scrum-board -n cosmos-scrum-board --yes
+```
+
+数分かかる。**完全に消えてから**次へ（残っていると名前衝突で作成が失敗する）:
+
+```bash
+az cosmosdb show -g rg-scrum-board -n cosmos-scrum-board -o table
+# → NotFound 系エラーになれば削除完了
+```
+
+### 1-b. アカウントを作成する（無料レベル）
+
+```bash
+az cosmosdb create \
+  --name cosmos-scrum-board \
+  --resource-group rg-scrum-board \
+  --locations regionName=japaneast failoverPriority=0 isZoneRedundant=False \
+  --enable-free-tier true \
+  --default-consistency-level Session
+```
+
+- ★**リージョン容量に注意**。作成が `ServiceUnavailable` / high demand で落ちたら、
+  `regionName` を `japanwest`（App Service と同居で遅延も減る）や他リージョンに変えて再実行。
+  過去にこのプロジェクトが実際に踏んだ壁（B-05: japanwest が容量不足で Cosmos を japaneast へ
+  逃がした）。
+- 無料レベルは**1サブスクリプションに1つ**。別アカウントが無料枠を握っていると失敗する
+  → その枠を使っていた失敗アカウントを 1-a で消してあれば `--enable-free-tier true` のままで
+  よい。どうしても取れなければ `--enable-free-tier` を外す（課金対象。予算アラートは設定済み）。
+- 5〜10 分かかる。**完了を確認**してから Step 2 へ:
+
+```bash
+az cosmosdb show -g rg-scrum-board -n cosmos-scrum-board --query provisioningState -o tsv
+# → Succeeded なら成功
+```
+
+---
+
+## Step 2. データベース `scrumboard` を作る（コンテナは作らない）
 
 **なぜ**: アプリは `client.get_database_client(name)` で DB ハンドルを取るだけで、**DB 自体は
 作らない**（`backend/app/data/settings.py`）。DB が無いとコンテナ作成時に「database not
@@ -98,7 +157,7 @@ az cosmosdb sql database show \
 
 ---
 
-## Step 2. App Service に `COSMOS_*` を登録して再起動
+## Step 3. App Service に `COSMOS_*` を登録して再起動
 
 **なぜ**: 起動時の lifespan が `COSMOS_ENDPOINT / COSMOS_KEY / COSMOS_DATABASE` を読んで
 `is_configured` が真になると、リポジトリを構築して DB モードで立ち上がる。3つ揃わないと
@@ -121,7 +180,7 @@ az webapp config appsettings set \
   --name scrum-board-yoga --resource-group rg-scrum-board \
   --settings \
     COSMOS_ENDPOINT="https://cosmos-scrum-board.documents.azure.com:443/" \
-    COSMOS_KEY="<手順で取得したプライマリキー>" \
+    COSMOS_KEY="<Step で取得したプライマリキー>" \
     COSMOS_DATABASE="scrumboard"
 ```
 
@@ -144,7 +203,7 @@ az webapp config appsettings list --name scrum-board-yoga -g rg-scrum-board \
 
 ---
 
-## Step 3. 起動時の配線を確認する（ログ）
+## Step 4. 起動時の配線を確認する（ログ）
 
 **なぜ**: 再起動後、lifespan が「コンテナ作成 → マイグレーション適用」まで行う。ここで
 `documents` コンテナと `prd_sandbox`（サンドボックス）/ `prd_scrum_board`（スクラムボード）の
@@ -167,13 +226,13 @@ Cosmos に接続しました（リポジトリを app.state に配置）。
 マイグレーションを適用しました: 001, 002        # 初回のみ。2回目以降は出ない（冪等）
 ```
 
-- `Cosmos 未構成のため DB 無しで起動します` が出る → Step 2 の設定が反映されていない
+- `Cosmos 未構成のため DB 無しで起動します` が出る → Step 3 の設定が反映されていない
   （名前の綴り／再起動漏れ）。
 - 起動が失敗する／`documents` 作成で例外 → キーが誤り・`disableLocalAuth=true`・
-  `publicNetwork=Disabled` のいずれか（Step 0 を見直す）。
+  `publicNetwork=Disabled`・アカウントが `Failed` のいずれか（Step 0 / Step 1 を見直す）。
 
 **コンテナができたかの確認**（データ面のクエリは az CLI では扱いにくいので、コンテナの
-存在で代替。product の中身は Step 4 の `/api/me` で確認する）:
+存在で代替。product の中身は Step 5 の `/api/me` で確認する）:
 
 ```bash
 az cosmosdb sql container show \
@@ -184,7 +243,7 @@ az cosmosdb sql container show \
 
 ---
 
-## Step 4. `/api/me` を叩いて「所属なし」が消えることを確認
+## Step 5. `/api/me` を叩いて「所属なし」が消えることを確認
 
 **なぜ**: `GET /api/me` は毎回 `ensure_bootstrapped` を呼び、**初回サインインなら user と
 サンドボックスの member を作る**（冪等）。ここで初めて自分が `prd_sandbox` の member になる。
@@ -197,13 +256,13 @@ az cosmosdb sql container show \
 - 「どのプロダクトにも属していません（所属なし）」の表示が消える。
 - **プロダクトセレクタに「サンドボックス」**（`prd_sandbox`）が現れ、「選択中のプロダクト」が
   それになる。
-- `API が検証した oid` は従来どおり表示される（この値が Step 5 で使う自分の oid）。
+- `API が検証した oid` は従来どおり表示される（この値が Step 6 で使う自分の oid）。
 
-まだ「所属なし」のまま → Step 3 のログを確認（DB 無しで起動していないか）。
+まだ「所属なし」のまま → Step 4 のログを確認（DB 無しで起動していないか）。
 
 ---
 
-## Step 5.（任意）本番プロジェクト `prd_scrum_board` に自分を登録
+## Step 6.（任意）本番プロジェクト `prd_scrum_board` に自分を登録
 
 **なぜ**: サンドボックスは全員自動参加だが、**本番（スクラムボード）は権限を緩めない**。
 入るには明示登録が要る（`scripts/add_member.py`・再実行可能）。このアプリ自身のバックログを
@@ -252,11 +311,15 @@ registered: product=prd_scrum_board oid=<oid> role=admin
 
 | 症状 | 原因の候補 | 見るところ |
 |:---|:---|:---|
-| 画面が「所属なし」のまま | `COSMOS_*` 未反映 / 再起動漏れ | Step 3 ログに「DB 無しで起動」が出ていないか |
+| `az cosmosdb list` が空 | list の取りこぼし（存在しても空を返す） | `az resource list --resource-type …` / 名前指定 `show` で確認 |
+| `az cosmosdb show` が `state=Failed` | 作成が途中で失敗した器が残存 | **Step 1**（削除して作り直す） |
+| DB 作成が `BadRequest`（failed provisioning state） | 同上 | **Step 1** |
+| アカウント作成が `ServiceUnavailable` | リージョン容量不足 | Step 1-b で `regionName` を変える |
+| 画面が「所属なし」のまま | `COSMOS_*` 未反映 / 再起動漏れ | Step 4 ログに「DB 無しで起動」が出ていないか |
 | product API が 503 | repo=None（DB 無し起動） | 同上 |
-| 起動失敗 / コンテナ作成で例外 | キー誤り・`disableLocalAuth=true`・`publicNetwork=Disabled` | Step 0 の3項目 |
-| ログに「database not found」 | Step 1（DB 作成）未実施 | Step 1 |
-| Data Explorer がグレー | プロビジョニング中 / ネットワーク制限 / キー無効 / ブラウザ | Step 0（az CLI で代替できる） |
+| 起動失敗 / コンテナ作成で例外 | キー誤り・`disableLocalAuth=true`・`publicNetwork=Disabled` | Step 0 の各項目 |
+| ログに「database not found」 | Step 2（DB 作成）未実施 | Step 2 |
+| Data Explorer がグレー | アカウントが `Failed` / ネットワーク制限 / キー無効 / ブラウザ | Step 0 → 該当すれば Step 1 |
 
 ## 再現性についての申し送り
 
