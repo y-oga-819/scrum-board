@@ -1,0 +1,80 @@
+<main class="backlog">
+  <header class="backlog-header">
+    <div>
+      <h1>プロダクトバックログ</h1>
+      @if (selectedProduct(); as product) {
+        <p class="product">{{ product.name }}</p>
+      }
+    </div>
+    <a class="home-link" routerLink="/">ホームへ</a>
+  </header>
+
+  @if (errorMessage()) {
+    <p class="error" role="alert">{{ errorMessage() }}</p>
+  }
+
+  @switch (state()) {
+    @case ('loading') {
+      <p class="hint">読み込み中…</p>
+    }
+    @case ('no-product') {
+      <p class="hint">
+        どのプロダクトにも属していません。管理者に招待を依頼してください（PBI <code>B-10</code>）。
+      </p>
+    }
+    @case ('error') {
+      <p class="hint">再読み込みしてください。</p>
+    }
+    @case ('ready') {
+      <section class="add">
+        @if (showAddForm()) {
+          <form class="add-form" (submit)="submitAdd(); $event.preventDefault()">
+            <label for="pbi-title">タイトル</label>
+            <input
+              #titleInput
+              id="pbi-title"
+              autocomplete="off"
+              (input)="newTitle = titleInput.value"
+            />
+            <div class="add-actions">
+              <button type="submit" class="primary">保存</button>
+              <button type="button" (click)="cancelAdd()">キャンセル</button>
+            </div>
+          </form>
+        } @else {
+          <button type="button" class="primary" (click)="openAddForm()">PBI を追加</button>
+        }
+      </section>
+
+      @if (pbis().length === 0) {
+        <p class="hint empty">まだ PBI がありません。「PBI を追加」から作成してください。</p>
+      } @else {
+        <ol class="pbi-list">
+          @for (pbi of pbis(); track pbi.id) {
+            <li
+              class="pbi-row"
+              draggable="true"
+              (dragstart)="onDragStart(pbi)"
+              (dragend)="onDragEnd()"
+              (dragover)="onDragOver($event)"
+              (drop)="onDrop(pbi)"
+            >
+              <span class="handle" aria-hidden="true">⠿</span>
+              <span class="title">{{ pbi.title }}</span>
+              <label class="status">
+                <span class="visually-hidden">ステータス</span>
+                <select [value]="pbi.status" (change)="changeStatus(pbi, $event)">
+                  @for (option of statuses; track option.value) {
+                    <option [value]="option.value" [selected]="option.value === pbi.status">
+                      {{ option.label }}
+                    </option>
+                  }
+                </select>
+              </label>
+            </li>
+          }
+        </ol>
+      }
+    }
+  }
+</main>
