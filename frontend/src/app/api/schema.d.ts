@@ -47,7 +47,7 @@ export interface paths {
         };
         /**
          * Read Backlog
-         * @description バックログを ``rank, id`` 順で 1 往復返す。各 PBI に ``_etag`` を含む。
+         * @description バックログを ``rank, id`` 順で 1 往復返す。各 PBI に ``_etag`` と配下タスクを含む。
          */
         get: operations["read_backlog_api_products__product_id__backlog_get"];
         put?: never;
@@ -220,11 +220,13 @@ export interface components {
         };
         /**
          * BacklogPbi
-         * @description バックログ 1 行分の PBI。単一 GET の :class:`~app.api.pbis.Pbi` に ``_etag`` を足す。
+         * @description バックログ 1 行分の PBI。単一 GET の :class:`~app.api.pbis.Pbi` に ``_etag`` と
+         *     **配下タスク**を足す。
          *
          *     集約 GET では版（``_etag``）を**本文のフィールド**として返す（D-20）。フロントはこの値を
          *     そのまま並び替え・ステータス変更の ``If-Match`` に使う。``_etag`` は先頭が下線のため
-         *     Pydantic では別名を張る（フィールド名は ``etag``・入出力の別名は ``_etag``）。
+         *     Pydantic では別名を張る（フィールド名は ``etag``・入出力の別名は ``_etag``）。``tasks`` は
+         *     この PBI を親に持つ pbi タスクを ``rank, id`` 順で並べたもの（無ければ空配列）。
          */
         BacklogPbi: {
             /** Etag */
@@ -254,6 +256,11 @@ export interface components {
             /** Rank */
             rank: string | null;
             status: components["schemas"]["PbiStatus"];
+            /**
+             * Tasks
+             * @default []
+             */
+            tasks: components["schemas"]["BacklogTask"][];
             /** Title */
             title: string;
             /** Type */
@@ -267,12 +274,60 @@ export interface components {
          * BacklogResponse
          * @description プロダクトバックログ画面の集約応答（B-17・D-20）。
          *
-         *     今は PBI 一覧のみ。配下タスク・未割当チームタスクはタスク層（B-20）で足すため、
-         *     **オブジェクトで包む**（フィールド追加で拡張でき、素の配列のように破壊的にならない）。
+         *     PBI 一覧（各 PBI は配下タスクを ``tasks`` に持つ。B-20）。未割当チームタスクは B-29 で
+         *     ``unassignedTeamTasks`` として足すため、**オブジェクトで包む**（フィールド追加で拡張でき、
+         *     素の配列のように破壊的にならない）。
          */
         BacklogResponse: {
             /** Pbis */
             pbis: components["schemas"]["BacklogPbi"][];
+        };
+        /**
+         * BacklogTask
+         * @description バックログの PBI 配下に並ぶタスク。単一 GET の :class:`~app.api.tasks.Task` に
+         *     ``_etag`` を足す（集約の各要素が版を本文で持つのは BacklogPbi と同じ理由 — D-20）。
+         */
+        BacklogTask: {
+            /** Etag */
+            _etag: string;
+            /** Assigneeid */
+            assigneeId: string | null;
+            /** Blockedreason */
+            blockedReason: string;
+            /** Completedat */
+            completedAt: string | null;
+            /** Createdat */
+            createdAt: string;
+            /** Createdby */
+            createdBy: string;
+            /** Id */
+            id: string;
+            /** Isblocked */
+            isBlocked: boolean;
+            /** Isdeleted */
+            isDeleted: boolean;
+            /** Memo */
+            memo: string;
+            /** Pbiid */
+            pbiId: string | null;
+            /** Productid */
+            productId: string;
+            /** Rank */
+            rank: string | null;
+            /** Sprintid */
+            sprintId: string | null;
+            status: components["schemas"]["TaskStatus"];
+            taskType: components["schemas"]["TaskType"];
+            /** Title */
+            title: string;
+            /** Todo */
+            todo: string;
+            /** Type */
+            type: string;
+            /** Updatedat */
+            updatedAt: string;
+            /** Updatedby */
+            updatedBy: string;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
