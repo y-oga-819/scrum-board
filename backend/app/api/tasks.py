@@ -58,16 +58,15 @@ class TaskCreate(BaseModel):
 
     ``taskType='pbi'`` なら ``pbiId`` が必須（I-3）、``taskType='team'`` なら ``pbiId`` は
     ``null``（I-4）。整合はサーバーが :func:`~app.data.tasks.check_invariants` で確かめる。
-    ``sprintId`` / ``rank`` / ``status`` は入力に取らない（プランニング B-22・ボード B-23 が
-    所有し、作成時は必ず ``todo`` / ``sprintId=null``）。
+    作成はタイトルだけの**クイック追加**に絞る（``todo`` / ``memo`` / ``assigneeId`` の編集は
+    後から ``PATCH`` で足す — タスク詳細の作り込みは本 PBI の範囲外）。``sprintId`` / ``rank`` /
+    ``status`` も入力に取らない（プランニング B-22・ボード B-23 が所有し、作成時は必ず
+    ``todo`` 状態 / ``sprintId=null``）。
     """
 
     taskType: TaskType
     pbiId: str | None = None
     title: str = Field(min_length=1)
-    todo: str = ""
-    memo: str = ""
-    assigneeId: str | None = None
 
 
 class TaskUpdate(BaseModel):
@@ -202,9 +201,6 @@ def create(
         task_type=body.taskType,
         title=body.title,
         pbi_id=body.pbiId,
-        todo=body.todo,
-        memo=body.memo,
-        assignee_id=body.assigneeId,
     )
     set_etag(response, doc)
     return doc
