@@ -38,6 +38,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/products/{product_id}/backlog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Backlog
+         * @description バックログを ``rank, id`` 順で 1 往復返す。各 PBI に ``_etag`` を含む。
+         */
+        get: operations["read_backlog_api_products__product_id__backlog_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/products/{product_id}/pbis": {
         parameters: {
             query?: never;
@@ -146,6 +166,62 @@ export interface components {
             id: string;
             /** Text */
             text: string;
+        };
+        /**
+         * BacklogPbi
+         * @description バックログ 1 行分の PBI。単一 GET の :class:`~app.api.pbis.Pbi` に ``_etag`` を足す。
+         *
+         *     集約 GET では版（``_etag``）を**本文のフィールド**として返す（D-20）。フロントはこの値を
+         *     そのまま並び替え・ステータス変更の ``If-Match`` に使う。``_etag`` は先頭が下線のため
+         *     Pydantic では別名を張る（フィールド名は ``etag``・入出力の別名は ``_etag``）。
+         */
+        BacklogPbi: {
+            /** Etag */
+            _etag: string;
+            /** Acceptancecriteria */
+            acceptanceCriteria: components["schemas"]["AcceptanceCriterion"][];
+            /** Completedat */
+            completedAt: string | null;
+            /** Completedsprintid */
+            completedSprintId: string | null;
+            /** Createdat */
+            createdAt: string;
+            /** Createdby */
+            createdBy: string;
+            /** Description */
+            description: string;
+            /** Estimate */
+            estimate: number | null;
+            /** Id */
+            id: string;
+            /** Isdeleted */
+            isDeleted: boolean;
+            /** Parentpbiid */
+            parentPbiId: string | null;
+            /** Productid */
+            productId: string;
+            /** Rank */
+            rank: string | null;
+            status: components["schemas"]["PbiStatus"];
+            /** Title */
+            title: string;
+            /** Type */
+            type: string;
+            /** Updatedat */
+            updatedAt: string;
+            /** Updatedby */
+            updatedBy: string;
+        };
+        /**
+         * BacklogResponse
+         * @description プロダクトバックログ画面の集約応答（B-17・D-20）。
+         *
+         *     今は PBI 一覧のみ。配下タスク・未割当チームタスクはタスク層（B-20）で足すため、
+         *     **オブジェクトで包む**（フィールド追加で拡張でき、素の配列のように破壊的にならない）。
+         */
+        BacklogResponse: {
+            /** Pbis */
+            pbis: components["schemas"]["BacklogPbi"][];
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -404,6 +480,64 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MeResponse"];
+                };
+            };
+        };
+    };
+    read_backlog_api_products__product_id__backlog_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BacklogResponse"];
+                };
+            };
+            /** @description Problem */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Problem */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
         };
