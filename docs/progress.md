@@ -41,7 +41,7 @@
 | **M1** | ★**1ページがEntra IDで保護される**（Easy Authなし） | B-01 〜 B-06 | ✅ **6 / 6** |
 | **M2** | ★**認可まで通る**（非メンバーは403・初回サインインで自動参加） | B-07 〜 B-10 | ✅ **4 / 4** |
 | **M3** | 開発の土台（テスト/CI/API規約/リポジトリ規約） | B-11 〜 B-14 | 🟨 2 / 4（B-12・B-13 完了・B-11 進行中） |
-| **M4** | プロダクトバックログが運用できる | B-15 〜 B-20 | 🟨 3 / 6（B-15・B-16・B-18 完了・B-17 実装完了/E2E は B-20 待ち） |
+| **M4** | プロダクトバックログが運用できる | B-15 〜 B-20 | 🟨 3 / 6（B-15・B-16・B-18 完了・B-17・B-20 実装完了/E2E①はサインイン経路待ちで繰り延べ・B-19 未着手） |
 | **M5** | ★**スプリントが1周回る**（ここからドッグフーディング） | B-21 〜 B-26 | 0 / 6 |
 | **M6** | デイリースクラムがこの画面だけで完結する | B-27 〜 B-29 | 0 / 3 |
 | **M7** | 実運用に耐える | B-30 〜 B-31 | 0 / 2 |
@@ -490,13 +490,35 @@ PoC自体を無検証で進めないため、**V-1〜V-4 のテストは B-04 �
 - [ ] 分割で生成したPBIが `parentPbiId` で元を参照する
 - [ ] 一覧から分割元を辿れる
 
-### ⬜ B-20 タスクのCRUD　`依存: B-07, B-15`
-- [ ] I-1〜I-5 のバリデーションが**単一の関数に集約**されている
-- [ ] I-4: 種別判定は `pbiId` の有無ではなく **`taskType`** で行う
-- [ ] `taskType='team'`（親PBIなし）でも作成できる
-- [ ] **B-11 の不変条件テーブル駆動テストの振る舞い検査を有効化する** — `app.tasks.validation` に `check_invariants(doc) -> list[str]`（違反した不変条件IDの列）を実装し、`backend/tests/invariants/` の `pytest.importorskip` による skip が外れて緑になる（D-19 の必須4領域の1つ。違反IDは B-12 の `violations` の `rule` と揃える）
-- [ ] **`GET /backlog` に配下タスクを結合する**（B-17 が集約の join point を用意済み — `app/api/backlog.py`）。PBI ごとに `tasks` を束ね、パーティションをもう一度型で舐めるだけで **N+1 にしない**（D-20：`/backlog` は PBI＋各PBIの配下タスク＋未割当チームタスクを返す。未割当チームタスクの露出は B-29）。フロントのバックログ画面（`frontend/src/app/backlog/`）は各 PBI 配下のタスクを表示する
-- [ ] **B-17 の E2E フロー①（サインイン→PBI作成→タスク追加, `frontend/e2e/signin-pbi-task.spec.ts`）の `test.fixme` を外して緑にする** — PBI 作成の導線（`PBI を追加`／`タイトル`／`保存`）は **B-17 で用意済み**。この PBI で「タスク追加UI」が載り、あわせてヘッドレスで通すサインイン経路（`playwright.config.ts` の宿題）を決める（D-19 主要フロー網羅。B-17 から明示的に繰り延べられた項目）
+### 🟨 B-20 タスクのCRUD　`依存: B-07, B-15`
+> **CRUD・不変条件・バックログ結合・追加UIまで実装完了。残るは E2E フロー①の緑化のみで、
+> これはヘッドレスのサインイン経路が未決のため意図的に繰り延べ（2026-08-01）。**
+> タスクのドメイン規則を **データ層の純関数**（`app/data/tasks.py`）に一元化した。判別子
+> `taskType`（pbi/team）と状態（todo/doing/done）の語彙を持ち、不変条件 **I-1〜I-4** を単一の
+> `check_invariants(doc) -> list[str]` に集約する（違反した不変条件 ID の列を返す）。**I-5**
+> （完了タスクの `sprintId` を持ち越し・除外で動かさない）は単一文書では表せず、スプリント
+> 終了操作（B-25）に閉じる（提案書 04章の表・`single_doc=False`）。完了地の刻印（`completedAt`）は
+> `completion_changes` に閉じ、done への出入りで I-1・I-2 を保つ（ボード B-23 も同じ経路を通る）。
+>
+> CRUD は `app/api/tasks.py`（`/api/products/{pid}/tasks`）。作成・更新のたびに結果ドキュメントを
+> `check_invariants` に通し、破っていれば **422 + `violations`**（`rule='I-3'` 等・B-12 と揃う）で
+> 弾く（サーバーが唯一の信頼境界 — D-20）。`taskType='team'`（親 PBI なし）でも作成でき、pbi
+> タスクは親 PBI の実在まで確かめて孤児を作らせない。規約はハンドラに書き散らさず既存部品に
+> 依存（非メンバー 403・If-Match 必須 428/412・単一ドキュメント応答は ETag）。
+>
+> `GET /backlog` は B-17 が用意した join point に配下タスク（`taskType='pbi'`）を結合する。
+> パーティションのタスクを 1 回舐めて `pbiId` で束ねるだけで **N+1 にしない**。各タスクも
+> `_etag` を本文に持ち、フロントがボード操作の If-Match に使える。未割当チームタスクの露出
+> （`unassignedTeamTasks`）は B-29 に残す（同じ join point に足す）。フロントは各 PBI 配下に
+> タスクを表示し、「タスクを追加」で pbi タスクを足せる（`TaskService`＋バックログ画面）。
+> `make test`（pytest 261 件＋Vitest 61 件）・`make lint`・`make typecheck`・`make build` 緑。
+> OpenAPI から `schema.d.ts` 再生成。
+- [x] I-1〜I-5 のバリデーションが**単一の関数に集約**されている　`app/data/tasks.py`（`check_invariants` が単一文書の I-1〜I-4 を集約。I-5 は操作をまたぐため B-25 の終了処理に閉じる — 提案書 04章の表）
+- [x] I-4: 種別判定は `pbiId` の有無ではなく **`taskType`** で行う　`check_invariants`／`_group_pbi_tasks` が `taskType` で判別
+- [x] `taskType='team'`（親PBIなし）でも作成できる　`POST /tasks`（`taskType='team'` は `pbiId=null`。team に pbiId を付けると I-4 で 422）
+- [x] **B-11 の不変条件テーブル駆動テストの振る舞い検査を有効化する** — `app.data.tasks.check_invariants(doc) -> list[str]` を実装し、`backend/tests/invariants/` の `VALIDATOR_MODULE` をそこへ向けて `pytest.importorskip` の skip を外した（違反IDは B-12 の `violations` の `rule` と揃う）
+- [x] **`GET /backlog` に配下タスクを結合する**（B-17 の join point — `app/api/backlog.py`）。PBI ごとに `tasks` を束ね、パーティションをもう一度型で舐めるだけで **N+1 にしない**（未割当チームタスクの露出は B-29）。フロントのバックログ画面（`frontend/src/app/backlog/`）は各 PBI 配下のタスクを表示する
+- [ ] **B-17 の E2E フロー①（サインイン→PBI作成→タスク追加, `frontend/e2e/signin-pbi-task.spec.ts`）の `test.fixme` を外して緑にする** — 画面の導線（PBI 作成＝B-17／タスク追加＝B-20）は揃い、**フロー本体は書き上げた**。緑化に残るのは**ヘッドレスのサインイン経路**（`playwright.config.ts` の宿題。テスト用トークン注入か開発用サインイン省略経路 B-14 のどちらか）を決める 1 点のみで、方針判断を要するため**意図的に繰り延べ**（D-19 主要フロー網羅）
 
 ---
 
@@ -671,7 +693,9 @@ PoC自体を無検証で進めないため、**V-1〜V-4 のテストは B-04 �
 
 ---
 
-_最終更新: 2026-08-01（B-18 PBI詳細を完了。バックログからドリルダウンする詳細画面
-（`/backlog/:pbiId`）で概要・完了条件チェックリスト・見積りを編集できる。フロントのみ
-（更新経路は B-15 の汎用 PATCH で足りる）。`PbiService` に単一 GET／更新を追加し ETag を
-運ぶ。M4 は 3/6。次の候補は B-19（PBI分割）または B-20（タスクCRUD）。B-11 進行中）_
+_最終更新: 2026-08-01（B-20 タスクのCRUDを実装完了。タスクのドメイン規則と不変条件
+I-1〜I-4 を単一関数 `check_invariants`（`app/data/tasks.py`）に集約し、B-11 のテーブル駆動
+振る舞い検査を有効化。`/api/products/{pid}/tasks` の CRUD（team タスクも作成可・不変条件
+違反は 422+violations）、`GET /backlog` への配下タスク結合（N+1 なし）、バックログ画面の
+タスク表示・追加UIまで通した。残る E2E フロー①はヘッドレスのサインイン経路が未決のため
+意図的に繰り延べ（B-20 は 🟨）。M4 は完了 3/6。次の候補は B-19（PBI分割）。B-11 進行中）_
