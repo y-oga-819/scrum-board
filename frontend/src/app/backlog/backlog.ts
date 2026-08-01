@@ -9,6 +9,7 @@ import {
   PbiStatus,
 } from '../products/pbi.service';
 import { ProductService, ProductSummary } from '../products/product.service';
+import { TaskService } from '../products/task.service';
 
 /** `GET /api/me` の応答のうち、この画面が必要とする所属一覧だけ（B-10・D-21）。 */
 interface MeResponse {
@@ -44,6 +45,7 @@ const STATUS_LABELS: { value: PbiStatus; label: string }[] = [
 export class BacklogPage implements OnInit {
   private readonly http = inject(HttpClient);
   private readonly pbiApi = inject(PbiService);
+  private readonly taskApi = inject(TaskService);
   private readonly products = inject(ProductService);
 
   protected readonly statuses = STATUS_LABELS;
@@ -62,6 +64,11 @@ export class BacklogPage implements OnInit {
   protected readonly showAddForm = signal(false);
   /** 入力中のタイトル（template-driven フォームの双方向バインド）。 */
   protected newTitle = '';
+
+  /** タスク追加フォームを開いている PBI の id（無ければ null）。1 つずつ開く。 */
+  protected readonly taskFormPbiId = signal<string | null>(null);
+  /** 入力中のタスクタイトル。 */
+  protected newTaskTitle = '';
 
   /** ドラッグ中の PBI id（ドロップ先の計算に使う）。 */
   private draggingId: string | null = null;
@@ -124,6 +131,39 @@ export class BacklogPage implements OnInit {
         this.load(productId);
       },
       error: (err) => this.reportProblem(err, '追加に失敗しました。'),
+    });
+  }
+
+  // --- 配下タスクの追加（B-20） ----------------------------------------------
+
+  /** ある PBI のタスク追加フォームを開く（同時に開くのは 1 つ）。 */
+  protected openTaskForm(pbi: BacklogPbi): void {
+    this.errorMessage.set('');
+    this.newTaskTitle = '';
+    this.taskFormPbiId.set(pbi.id);
+  }
+
+  protected cancelTask(): void {
+    this.taskFormPbiId.set(null);
+  }
+
+  /**
+   * PBI 配下に pbi タスクを 1 件足す。`taskType='pbi'` と `pbiId` はサーバーの語彙どおり
+   * 渡す（判別は taskType — I-4）。作成後は集約 GET を引き直し、サーバーの並び・版を正とする。
+   */
+  protected submitTask(pbi: BacklogPbi): void {
+    const title = this.newTaskTitle.trim();
+    const productId = this.productId();
+    if (title === '' || productId === '') {
+      return;
+    }
+    this.errorMessage.set('');
+    this.taskApi.create(productId, { taskType: 'pbi', pbiId: pbi.id, title }).subscribe({
+      next: () => {
+        this.taskFormPbiId.set(null);
+        this.load(productId);
+      },
+      error: (err) => this.reportProblem(err, 'タスクの追加に失敗しました。'),
     });
   }
 
