@@ -162,9 +162,7 @@ def test_create_pbi_task_with_parent(repo: InMemoryRepository) -> None:
 
 
 def test_get_task_returns_created(repo: InMemoryRepository) -> None:
-    created = create_task(
-        repo, product_id=PRODUCT, actor=ACTOR, task_type=TaskType.TEAM, title="x"
-    )
+    created = create_task(repo, product_id=PRODUCT, actor=ACTOR, task_type=TaskType.TEAM, title="x")
     fetched = get_task(repo, product_id=PRODUCT, task_id=created["id"])
     assert fetched is not None
     assert fetched["id"] == created["id"]
