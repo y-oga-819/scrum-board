@@ -12,7 +12,8 @@ BACKEND_DIR  := backend
 PORT         ?= 8000
 
 .PHONY: help install install-frontend install-backend build build-frontend build-frontend-e2e \
-        dev dev-frontend dev-backend dev-fake run run-e2e test test-frontend test-backend test-cosmos test-e2e \
+        dev dev-frontend dev-backend dev-fake run run-e2e test test-frontend test-backend test-cosmos \
+        test-e2e e2e-seed e2e-teardown \
         lint lint-frontend lint-backend typecheck typecheck-frontend \
         typecheck-backend gen-types coverage coverage-frontend coverage-backend clean
 
@@ -78,9 +79,17 @@ test-cosmos: ## Run layer-3 Cosmos contract tests (needs a running emulator; see
 	# Without them the suite skips (so plain `make test-backend` stays Cosmos-free).
 	cd $(BACKEND_DIR) && uv run pytest -m cosmos --no-cov
 
-test-e2e: ## Run Playwright E2E flows (layer 4). Flows are fixme until their screens land.
-	# Enable a flow by removing its test.fixme once the owning PBI's screen exists.
+test-e2e: ## Run Playwright E2E flows (layer 4). Boots the app via webServer; needs a Cosmos emulator.
+	# Set COSMOS_ENDPOINT/KEY/DATABASE (emulator) first. The Playwright globalSetup seeds
+	# prd_test_<E2E_RUN_ID> and globalTeardown purges it (EX-1/D-22). Auth is bypassed via
+	# the env-gated resolver (webServer sets E2E_AUTH_BYPASS=1).
 	cd $(FRONTEND_DIR) && npm run e2e
+
+e2e-seed: ## Seed the E2E isolated partition (needs COSMOS_* + E2E_RUN_ID + E2E_AUTH_OID — EX-1/D-22)
+	uv run --project $(BACKEND_DIR) python scripts/e2e_seed.py
+
+e2e-teardown: ## Physically delete the E2E isolated partition (needs COSMOS_* + E2E_RUN_ID — EX-1/D-22)
+	uv run --project $(BACKEND_DIR) python scripts/e2e_teardown.py
 
 test-frontend: ## Run frontend (Vitest, jsdom) tests headlessly
 	# Vitest runs on jsdom (no real browser), so nothing browser-specific is needed
