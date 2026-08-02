@@ -13,18 +13,25 @@ from .resolver import (
     CurrentUserResolver,
     EntraCurrentUserResolver,
 )
-from .settings import AuthSettings, auth_settings_from_env
+from .settings import (
+    AuthSettings,
+    E2EBypassSettings,
+    auth_settings_from_env,
+    e2e_bypass_from_env,
+)
 from .token import VerifiedToken, verify_token
 
 __all__ = [
     "AuthSettings",
     "AuthenticatedUser",
     "CurrentUserResolver",
+    "E2EBypassSettings",
     "EntraCurrentUserResolver",
     "InvalidTokenError",
     "VerifiedToken",
     "auth_settings_from_env",
     "current_user",
+    "e2e_bypass_from_env",
     "get_current_user_resolver",
     "verify_token",
 ]

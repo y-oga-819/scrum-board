@@ -13,8 +13,13 @@ from fastapi import Depends, HTTPException, Request, status
 
 from .errors import InvalidTokenError
 from .jwks import CachingJwksProvider, JwksProvider
-from .resolver import AuthenticatedUser, CurrentUserResolver, EntraCurrentUserResolver
-from .settings import AuthSettings, auth_settings_from_env
+from .resolver import (
+    AuthenticatedUser,
+    CurrentUserResolver,
+    EntraCurrentUserResolver,
+    FixedUserResolver,
+)
+from .settings import AuthSettings, auth_settings_from_env, e2e_bypass_from_env
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +36,22 @@ def _jwks_for(settings: AuthSettings) -> JwksProvider:
 
 
 def get_current_user_resolver() -> CurrentUserResolver:
-    """既定は Entra 実装。テスト／ゲストは ``dependency_overrides`` で差し替える。"""
+    """既定は Entra 実装。テスト／ゲストは ``dependency_overrides`` で差し替える。
+
+    E2E は別プロセスの実サーバで回り ``dependency_overrides`` を使えないため、
+    ``E2E_AUTH_BYPASS=1`` のときだけ env ゲートで固定ユーザーの resolver に差し替える
+    （既定 OFF・fail-closed。本番では設定しない — D-22）。
+    """
+    bypass = e2e_bypass_from_env()
+    if bypass.is_active:
+        # 本番で誤って有効化されていないか、ログで気づけるようにする。
+        logger.warning(
+            "E2E 認証バイパスが有効です（E2E_AUTH_BYPASS=1, oid=%s）。本番では設定しないこと。",
+            bypass.oid,
+        )
+        return FixedUserResolver(
+            AuthenticatedUser(oid=bypass.oid, display_name=bypass.display_name),
+        )
     settings = auth_settings_from_env()
     if not settings.is_configured:
         # B-02 の実値待ち。黙って全 401 にせず、設定漏れだと分かるよう警告する

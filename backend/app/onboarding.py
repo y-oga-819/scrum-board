@@ -41,14 +41,24 @@ class ProductMembership:
     role: Role
 
 
-def ensure_bootstrapped(repo: Repository, user: AuthenticatedUser) -> None:
+def ensure_bootstrapped(
+    repo: Repository,
+    user: AuthenticatedUser,
+    *,
+    skip_sandbox: bool = False,
+) -> None:
     """初回サインインなら user を作り、サンドボックスの member を与える（冪等）。
 
     既に居れば何もしない。作成が同時実行で衝突しても 409 を握りつぶすため、
     **何度呼んでも安全**（毎回の ``/api/me`` から呼べる）。
+
+    ``skip_sandbox`` は E2E 用（D-22）。E2E ユーザーを ``prd_test_<runId>`` の member
+    **だけ**にして ``/api/me`` の ``products`` を 1 件に絞り、バックログが確実にその
+    プロダクトを選ぶようにする（サンドボックスが混ざると先頭に来て隔離が崩れる）。
     """
     _ensure_user(repo, user)
-    _ensure_sandbox_membership(repo, user.oid)
+    if not skip_sandbox:
+        _ensure_sandbox_membership(repo, user.oid)
 
 
 def _ensure_user(repo: Repository, user: AuthenticatedUser) -> None:

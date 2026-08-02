@@ -73,6 +73,21 @@ class EntraCurrentUserResolver:
         )
 
 
+class FixedUserResolver:
+    """トークン検証をせず、常に固定のユーザーを返す resolver（D-22）。
+
+    env ゲートの E2E 認証バイパス用。``if guest:`` をハンドラに撒かず「差し替えで表現する」
+    という resolver の設計（D-21）に沿って、バイパスもここに 1 実装として閉じ込める。
+    本番では使わない（``get_current_user_resolver`` が既定で Entra 実装を返す）。
+    """
+
+    def __init__(self, user: AuthenticatedUser) -> None:
+        self._user = user
+
+    async def resolve(self, request: Request) -> AuthenticatedUser:
+        return self._user
+
+
 def _bearer_token(request: Request) -> str:
     """``Authorization: Bearer <token>`` からトークンを取り出す。"""
     header = request.headers.get("Authorization")
