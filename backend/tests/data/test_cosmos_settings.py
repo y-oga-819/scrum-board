@@ -13,7 +13,13 @@ from app.data.settings import cosmos_settings_from_env
 
 @pytest.fixture(autouse=True)
 def _clear_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    for name in ("COSMOS_ENDPOINT", "COSMOS_KEY", "COSMOS_DATABASE", "COSMOS_TLS_VERIFY"):
+    for name in (
+        "COSMOS_ENDPOINT",
+        "COSMOS_KEY",
+        "COSMOS_DATABASE",
+        "COSMOS_TLS_VERIFY",
+        "COSMOS_CREATE_DATABASE",
+    ):
         monkeypatch.delenv(name, raising=False)
 
 
@@ -33,3 +39,21 @@ def test_tls_verify_stays_true_for_other_values(
     # "0" 以外は検証する（誤った値でうっかり検証を切らない fail-safe）。
     monkeypatch.setenv("COSMOS_TLS_VERIFY", value)
     assert cosmos_settings_from_env().tls_verify is True
+
+
+def test_create_database_defaults_to_false_when_unset() -> None:
+    # 未設定では DB を自前で作らない（本番は infra が作る — provisioning.py の設計境界）。
+    assert cosmos_settings_from_env().create_database is False
+
+
+def test_create_database_true_only_for_explicit_one(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("COSMOS_CREATE_DATABASE", "1")
+    assert cosmos_settings_from_env().create_database is True
+
+
+@pytest.mark.parametrize("value", ["0", "true", "", "yes"])
+def test_create_database_stays_false_for_other_values(
+    monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    monkeypatch.setenv("COSMOS_CREATE_DATABASE", value)
+    assert cosmos_settings_from_env().create_database is False
