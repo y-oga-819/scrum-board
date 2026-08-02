@@ -13,7 +13,7 @@ PORT         ?= 8000
 
 .PHONY: help install install-frontend install-backend build build-frontend build-frontend-e2e \
         dev dev-frontend dev-backend dev-fake run run-e2e test test-frontend test-backend test-cosmos \
-        test-e2e e2e-seed e2e-teardown \
+        test-e2e e2e-seed e2e-teardown test-scripts \
         lint lint-frontend lint-backend typecheck typecheck-frontend \
         typecheck-backend gen-types coverage coverage-frontend coverage-backend clean
 
@@ -69,10 +69,15 @@ dev-fake: ## Dev-only smoke harness: API on $(PORT) with an in-memory store + st
 
 ## ---- test -------------------------------------------------------------------
 
-test: test-backend test-frontend ## Run all tests
+test: test-backend test-frontend test-scripts ## Run all tests
 
 test-backend: ## Run backend (pytest) tests
 	cd $(BACKEND_DIR) && uv run pytest
+
+test-scripts: ## Run repo tooling tests (coverage report script; stdlib only, no deps)
+	# PR コメントの「事実」を組み立てる scripts/coverage/ の純粋関数を検証する（EX-2/D-23）。
+	# stdlib のみなので uv/npm 不要。ここが壊れると Δ・patch coverage の表示が静かに誤る。
+	python3 -m unittest discover -s scripts/coverage/tests -t scripts/coverage/tests
 
 test-cosmos: ## Run layer-3 Cosmos contract tests (needs a running emulator; see conftest)
 	# Point COSMOS_ENDPOINT / COSMOS_KEY / COSMOS_DATABASE at an emulator first.
