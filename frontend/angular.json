@@ -101,7 +101,8 @@
             "codeCoverageReporters": [
               "text-summary",
               "html",
-              "json-summary"
+              "json-summary",
+              "json"
             ]
           }
         }

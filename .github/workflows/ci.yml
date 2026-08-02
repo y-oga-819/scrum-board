@@ -1,7 +1,8 @@
 name: CI
 
 # フロントエンド（Angular）とバックエンド（FastAPI）の lint・型チェック・テストを
-# push と pull request で実行する CI の基盤。カバレッジ結果は PR にコメントする。
+# push と pull request で実行する CI の基盤。カバレッジは「事実」として PR にコメントする
+# （数値ゲートは置かない。D-19／D-22）。
 on:
   push:
     branches: [main]
@@ -24,7 +25,10 @@ jobs:
       run:
         working-directory: backend
     steps:
+      # patch coverage は「base からの変更行」を要するため全履歴を取る（浅いと merge-base が引けない）。
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
@@ -42,26 +46,29 @@ jobs:
       - name: Type check (mypy)
         run: uv run mypy
 
+      # PR コメントの「事実」を組み立てる scripts/coverage/ の純粋関数を検証する（EX-2/D-22）。
+      # stdlib のみなので uv 不要。ここが壊れると Δ・patch coverage が静かに誤る。
+      - name: Test coverage report script
+        run: python3 -m unittest discover -s ../scripts/coverage/tests -t ../scripts/coverage/tests
+
       # addopts で term レポートは常に出る。CI では HTML/XML/JSON も出力する。
       - name: Test (pytest + coverage)
         run: uv run pytest --cov-report=html --cov-report=xml --cov-report=json
 
-      # coverage.json から PR コメント用の Markdown 断片を作る。
-      - name: Build coverage summary
+      # coverage.json と base 差分から、PR コメント用の正規化レポート（totals ＋ Δ ＋
+      # 未カバーの変更行）を作る。base_ref は PR のときだけ埋まる（push では totals のみ＝baseline）。
+      - name: Build coverage report
         if: always()
         run: |
-          python3 - <<'PY' > coverage-summary.md
-          import json
-          t = json.load(open("coverage.json"))["totals"]
-          lines = round(t["percent_covered"], 2)
-          bc, bn = t.get("covered_branches", 0), t.get("num_branches", 0)
-          branches = f"{bc}/{bn}" + (f" ({round(bc / bn * 100)}%)" if bn else "")
-          print("### Backend (pytest)\n")
-          print("| Metric | Coverage |")
-          print("| --- | --- |")
-          print(f"| Lines | {lines}% |")
-          print(f"| Branches | {branches} |")
-          PY
+          BASE=""
+          if [ -n "${{ github.base_ref }}" ]; then
+            git fetch --no-tags --depth=200 origin "${{ github.base_ref }}"
+            BASE="origin/${{ github.base_ref }}"
+          fi
+          python3 ../scripts/coverage/report.py collect \
+            --kind backend --coverage coverage.json \
+            --path-prefix backend --base-ref "$BASE" \
+            --out coverage-report.json
 
       - name: Upload coverage report
         if: always()
@@ -70,12 +77,13 @@ jobs:
           name: backend-coverage
           path: backend/htmlcov
 
-      - name: Upload coverage summary
+      # PR コメント（および次回 PR の baseline）が読む正規化レポート。
+      - name: Upload coverage data
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: backend-coverage-summary
-          path: backend/coverage-summary.md
+          name: backend-coverage-report
+          path: backend/coverage-report.json
 
   frontend:
     name: Frontend (eslint / tsc / vitest)
@@ -84,7 +92,10 @@ jobs:
       run:
         working-directory: frontend
     steps:
+      # backend と同じ理由で全履歴（patch coverage の merge-base）。
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -102,26 +113,28 @@ jobs:
       - name: Type check (tsc)
         run: npm run typecheck
 
-      # Vitest は jsdom 上で走る（実ブラウザ不要）。code-coverage で
-      # coverage/coverage-summary.json（json-summary）と HTML を出力する（angular.json で設定）。
+      # Vitest は jsdom 上で走る（実ブラウザ不要）。code-coverage で totals 用の
+      # coverage-summary.json（json-summary）と、patch coverage 用の行単位
+      # coverage-final.json（json）と HTML を出力する（angular.json で設定）。
       - name: Test (Vitest + coverage)
         run: npm run coverage
 
-      # coverage-summary.json から PR コメント用の Markdown 断片を作る（backend と同じ形）。
-      - name: Build coverage summary
+      # backend と同じ正規化レポートを作る。ubuntu-latest には python3 が標準で入るため
+      # uv 不要でそのまま走る。istanbul はビルド出力先の絶対パスを吐くので --strip-to src で
+      # frontend/src/... に写像してから差分と突き合わせる。
+      - name: Build coverage report
         if: always()
         run: |
-          node - <<'JS' > coverage-summary.md
-          const t = require('./coverage/coverage-summary.json').total;
-          const row = (m) => `| ${m[0]} | ${m[1].pct}% (${m[1].covered}/${m[1].total}) |`;
-          console.log('### Frontend (Vitest)\n');
-          console.log('| Metric | Coverage |');
-          console.log('| --- | --- |');
-          for (const m of [['Statements', t.statements], ['Branches', t.branches],
-                           ['Functions', t.functions], ['Lines', t.lines]]) {
-            console.log(row(m));
-          }
-          JS
+          BASE=""
+          if [ -n "${{ github.base_ref }}" ]; then
+            git fetch --no-tags --depth=200 origin "${{ github.base_ref }}"
+            BASE="origin/${{ github.base_ref }}"
+          fi
+          python3 ../scripts/coverage/report.py collect \
+            --kind frontend --coverage coverage/coverage-final.json \
+            --summary coverage/coverage-summary.json \
+            --path-prefix frontend --strip-to src --base-ref "$BASE" \
+            --out coverage-report.json
 
       - name: Upload coverage report
         if: always()
@@ -130,12 +143,12 @@ jobs:
           name: frontend-coverage
           path: frontend/coverage
 
-      - name: Upload coverage summary
+      - name: Upload coverage data
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: frontend-coverage-summary
-          path: frontend/coverage-summary.md
+          name: frontend-coverage-report
+          path: frontend/coverage-report.json
 
   # 層3: Cosmos 契約テスト（412／除外パス）。フェイクで通っても本番で壊れる領域だけを
   # エミュレータで裏取りする（D-19）。日常の backend ジョブは Cosmos なしで走るため、
@@ -232,7 +245,8 @@ jobs:
             exit 1
           fi
 
-  # 両ジョブのカバレッジ断片をまとめ、PR に貼る（同じコメントを更新する）。
+  # 両ジョブのレポートをまとめ、PR に「事実」を貼る（同じコメントを更新する）。
+  # 数値ゲートは置かず、Δ（元の状態→変化）と未カバーの変更行（次の行動）を示す。D-22。
   coverage-comment:
     name: Coverage PR comment
     runs-on: ubuntu-latest
@@ -241,40 +255,78 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+      actions: read # 直近 main run の baseline を取りにいくため
     steps:
-      - name: Download backend summary
-        uses: actions/download-artifact@v4
-        with:
-          name: backend-coverage-summary
-          path: backend-summary
+      - name: Checkout (report script only)
+        uses: actions/checkout@v4
 
-      - name: Download frontend summary
+      # このPRの HEAD レポート（各ジョブが上げたもの）。片方が落ちても render は
+      # 揃った分だけで組み立てるため、取得失敗は握りつぶす。
+      - name: Download backend report (this PR)
         uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
-          name: frontend-coverage-summary
-          path: frontend-summary
+          name: backend-coverage-report
+          path: current/backend
+      - name: Download frontend report (this PR)
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: frontend-coverage-report
+          path: current/frontend
+
+      # base（main）の直近成功 run を探し、その run のレポートを baseline として取る。
+      # 外部SaaS・サードパーティ action に依存せず、自前の artifact だけで Δ を出す。
+      - name: Find latest main run
+        id: baseline
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const runs = await github.rest.actions.listWorkflowRuns({
+              owner, repo, workflow_id: 'ci.yml',
+              branch: 'main', event: 'push', status: 'success', per_page: 1,
+            });
+            const run = runs.data.workflow_runs[0];
+            core.setOutput('run_id', run ? String(run.id) : '');
+            core.setOutput('base_sha', run ? run.head_sha : '');
+
+      # 初回（baseline なし）は run_id が空。download を試みず、Δ は「初回」表示になる。
+      - name: Download backend baseline
+        if: steps.baseline.outputs.run_id != ''
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: backend-coverage-report
+          path: baseline/backend
+          run-id: ${{ steps.baseline.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Download frontend baseline
+        if: steps.baseline.outputs.run_id != ''
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: frontend-coverage-report
+          path: baseline/frontend
+          run-id: ${{ steps.baseline.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Render coverage comment
+        run: |
+          python3 scripts/coverage/report.py render \
+            --current current/backend/coverage-report.json current/frontend/coverage-report.json \
+            --baseline baseline/backend/coverage-report.json baseline/frontend/coverage-report.json \
+            --sha "${{ github.event.pull_request.head.sha }}" \
+            --base-sha "${{ steps.baseline.outputs.base_sha }}" \
+            --out comment.md
 
       - name: Post or update coverage comment
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
-            const read = (p) => { try { return fs.readFileSync(p, 'utf8').trim(); } catch { return '_(no data)_'; } };
-            const backend = read('backend-summary/coverage-summary.md');
-            const frontend = read('frontend-summary/coverage-summary.md');
-
+            const body = fs.readFileSync('comment.md', 'utf8');
             const marker = '<!-- coverage-report -->';
-            const body = [
-              marker,
-              '## 🧪 Coverage report',
-              '',
-              backend,
-              '',
-              frontend,
-              '',
-              `<sub>Updated for ${context.sha.slice(0, 7)}.</sub>`,
-            ].join('\n');
-
             const { owner, repo } = context.repo;
             const issue_number = context.issue.number;
             const { data: comments } = await github.rest.issues.listComments({ owner, repo, issue_number });
