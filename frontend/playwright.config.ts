@@ -3,7 +3,8 @@ import { defineConfig, devices } from '@playwright/test';
 /**
  * E2E（D-19 の層4）。主要フローを網羅する受け皿。対象画面（M4/M5）が実装される
  * まで各フローは `test.fixme` で置き、フロー本体はそれぞれの PBI で埋める。
- * CI では **main マージ時**に回す（層4は分単位のため毎PRには載せない）。
+ * CI では **毎 PR（マージ前ゲート）**で回す（`e2e.yml` の PR トリガー。main への push で
+ * デプロイするため、マージ後 E2E ではゲートにならない — D-19 改定 / ci-branch-protection.md）。
  *
  * フロー有効化時の宿題（フローを fixme から外す前に決めること）:
  * - **サインインの通し方**。実 Entra への対話サインインは CI ヘッドレスでは通せない。
