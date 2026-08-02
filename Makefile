@@ -11,8 +11,8 @@ FRONTEND_DIR := frontend
 BACKEND_DIR  := backend
 PORT         ?= 8000
 
-.PHONY: help install install-frontend install-backend build build-frontend \
-        dev dev-frontend dev-backend dev-fake run test test-frontend test-backend test-cosmos test-e2e \
+.PHONY: help install install-frontend install-backend build build-frontend build-frontend-e2e \
+        dev dev-frontend dev-backend dev-fake run run-e2e test test-frontend test-backend test-cosmos test-e2e \
         lint lint-frontend lint-backend typecheck typecheck-frontend \
         typecheck-backend gen-types coverage coverage-frontend coverage-backend clean
 
@@ -37,9 +37,18 @@ build: build-frontend ## Build the production SPA bundle
 build-frontend: ## Build the Angular SPA into frontend/dist
 	cd $(FRONTEND_DIR) && npm run build
 
+build-frontend-e2e: ## Build the SPA with the e2e configuration (MSAL disabled — EX-1/D-22)
+	cd $(FRONTEND_DIR) && npm run build -- --configuration e2e
+
 ## ---- run --------------------------------------------------------------------
 
 run: build-frontend ## Production-like: FastAPI serves the built SPA on $(PORT)
+	cd $(BACKEND_DIR) && uv run uvicorn app.main:app --host 0.0.0.0 --port $(PORT)
+
+run-e2e: build-frontend-e2e ## E2E-mode run: e2e SPA + FastAPI with the env-gated auth bypass
+	# Playwright の webServer / CI から呼ぶ導線（EX-1・D-22）。COSMOS_* と
+	# E2E_AUTH_BYPASS / E2E_AUTH_OID は呼び出し側が環境変数で渡す。ここで既定値を
+	# 埋めない（バイパスの誤有効化を避けるため、旗は明示的に渡させる）。
 	cd $(BACKEND_DIR) && uv run uvicorn app.main:app --host 0.0.0.0 --port $(PORT)
 
 dev: ## Live-reload: run frontend and backend together (Ctrl-C stops both)
