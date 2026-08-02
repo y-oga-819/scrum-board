@@ -17,7 +17,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 
-from ..auth import AuthenticatedUser, current_user
+from ..auth import AuthenticatedUser, current_user, e2e_bypass_from_env
 from ..config import SERVICE_NAME
 from ..data import Repository
 from ..onboarding import ensure_bootstrapped, list_products
@@ -74,7 +74,9 @@ def me(
     if repository is not None:
         # 初回サインインなら user とサンドボックス member を作る（冪等・409 は握りつぶす）。
         # これで「サインインできた人には必ず居場所がある」＝ 403 で詰まらない（D-21）。
-        ensure_bootstrapped(repository, user)
+        # E2E では隔離のためサンドボックス自動参加をスキップし、prd_test_<runId> の
+        # member だけにする（products を 1 件に絞る — D-22）。
+        ensure_bootstrapped(repository, user, skip_sandbox=e2e_bypass_from_env().is_active)
         products = [
             ProductSummary(productId=p.product_id, name=p.name, role=p.role.value)
             for p in list_products(repository, user.oid)
