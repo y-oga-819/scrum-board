@@ -24,6 +24,7 @@ test('サインインして PBI を作り、タスクを1件足せる', async ({
   // その PBI 配下にタスクを 1 件足す（B-20）。
   await page.getByRole('button', { name: 'タスクを追加' }).click();
   await page.getByLabel('タスク名').fill('実装する');
-  await page.getByRole('button', { name: '追加' }).click();
+  // name はデフォルト部分一致で「追加」は「PBI を追加」にもマッチするため exact で絞る。
+  await page.getByRole('button', { name: '追加', exact: true }).click();
   await expect(page.getByText('実装する')).toBeVisible();
 });
