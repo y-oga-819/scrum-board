@@ -2,7 +2,7 @@ name: CI
 
 # フロントエンド（Angular）とバックエンド（FastAPI）の lint・型チェック・テストを
 # push と pull request で実行する CI の基盤。カバレッジは「事実」として PR にコメントする
-# （数値ゲートは置かない。D-19／D-22）。
+# （数値ゲートは置かない。D-19／D-23）。
 on:
   push:
     branches: [main]
@@ -46,7 +46,7 @@ jobs:
       - name: Type check (mypy)
         run: uv run mypy
 
-      # PR コメントの「事実」を組み立てる scripts/coverage/ の純粋関数を検証する（EX-2/D-22）。
+      # PR コメントの「事実」を組み立てる scripts/coverage/ の純粋関数を検証する（EX-2/D-23）。
       # stdlib のみなので uv 不要。ここが壊れると Δ・patch coverage が静かに誤る。
       - name: Test coverage report script
         run: python3 -m unittest discover -s ../scripts/coverage/tests -t ../scripts/coverage/tests
@@ -246,7 +246,7 @@ jobs:
           fi
 
   # 両ジョブのレポートをまとめ、PR に「事実」を貼る（同じコメントを更新する）。
-  # 数値ゲートは置かず、Δ（元の状態→変化）と未カバーの変更行（次の行動）を示す。D-22。
+  # 数値ゲートは置かず、Δ（元の状態→変化）と未カバーの変更行（次の行動）を示す。D-23。
   coverage-comment:
     name: Coverage PR comment
     runs-on: ubuntu-latest

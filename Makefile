@@ -75,7 +75,7 @@ test-backend: ## Run backend (pytest) tests
 	cd $(BACKEND_DIR) && uv run pytest
 
 test-scripts: ## Run repo tooling tests (coverage report script; stdlib only, no deps)
-	# PR コメントの「事実」を組み立てる scripts/coverage/ の純粋関数を検証する（EX-2/D-22）。
+	# PR コメントの「事実」を組み立てる scripts/coverage/ の純粋関数を検証する（EX-2/D-23）。
 	# stdlib のみなので uv/npm 不要。ここが壊れると Δ・patch coverage の表示が静かに誤る。
 	python3 -m unittest discover -s scripts/coverage/tests -t scripts/coverage/tests
 
