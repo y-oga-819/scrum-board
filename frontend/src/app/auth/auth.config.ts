@@ -18,7 +18,8 @@ import {
   MsalInterceptorConfiguration,
 } from '@azure/msal-angular';
 
-import { ENTRA_PLACEHOLDER, environment } from '../../environments/environment';
+import { environment } from '../../environments/environment';
+import { ENTRA_PLACEHOLDER } from '../../environments/environment.model';
 
 /**
  * 自作 API（FastAPI）を呼ぶためのアクセストークンが要求するスコープ。
