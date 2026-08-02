@@ -41,6 +41,10 @@ class CosmosSettings:
     endpoint: str
     key: str
     database: str
+    # TLS 証明書を検証するか。**既定 True（本番は必ず検証）**。エミュレータは自己署名
+    # 証明書のため、E2E（EX-1）だけ COSMOS_TLS_VERIFY=0 で明示的に無効化する。層3の
+    # 契約テスト（tests/contract/conftest.py）が同じ env で同じ切り替えをしている。
+    tls_verify: bool = True
 
     @property
     def is_configured(self) -> bool:
@@ -53,15 +57,22 @@ def cosmos_settings_from_env() -> CosmosSettings:
         endpoint=os.environ.get("COSMOS_ENDPOINT", ""),
         key=os.environ.get("COSMOS_KEY", ""),
         database=os.environ.get("COSMOS_DATABASE", ""),
+        # 明示的に "0" のときだけ無効化する。未設定・その他の値では検証する（fail-safe）。
+        tls_verify=os.environ.get("COSMOS_TLS_VERIFY", "1") != "0",
     )
 
 
 def create_client(settings: CosmosSettings) -> CosmosClient:
     """``CosmosClient`` を生成する。**呼び出し側が1個だけ持って使い回す**こと。
 
-    サーバーでは lifespan がこれを所有し、shutdown で ``close()`` する。
+    サーバーでは lifespan がこれを所有し、shutdown で ``close()`` する。エミュレータ相手
+    （E2E）は ``tls_verify=False`` で自己署名証明書を許容する（本番は既定で検証する）。
     """
-    return CosmosClient(url=settings.endpoint, credential=settings.key)
+    return CosmosClient(
+        url=settings.endpoint,
+        credential=settings.key,
+        connection_verify=settings.tls_verify,
+    )
 
 
 def build_repository(
