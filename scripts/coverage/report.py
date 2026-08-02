@@ -341,12 +341,6 @@ def render_section(current: dict, baseline: dict | None) -> str:
 def render_comment(current: list[dict], baseline: list[dict], sha: str, base_sha: str) -> str:
     base_by_kind = {r["kind"]: r for r in baseline}
     parts = [MARKER, "## 🧪 Coverage report", ""]
-    parts.append(
-        "数値目標は置かない（D-19）。**Δ** で「元の状態からどう変わったか」を、"
-        "**未カバーの変更行** で「次にどこへテストを足せるか」を示す。"
-        "足すかどうかの判断は書き手に返す。"
-    )
-    parts.append("")
     for cur in current:
         parts.append(render_section(cur, base_by_kind.get(cur["kind"])))
         parts.append("")
