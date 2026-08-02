@@ -137,6 +137,27 @@ class CosmosRepository:
             if_match=if_match,
         )
 
+    def purge_partition(self, product_id: str) -> int:
+        """パーティション（``productId``）配下を **物理削除**する。E2E teardown 専用（D-22）。
+
+        論理削除（:meth:`soft_delete`）はアプリの復旧価値のための機構で、テストの
+        後片付けとは目的が違う（D-21）。ここでは ``isDeleted`` に関わらず実ドキュメントを
+        消す。``prd_test_`` パーティションの使い捨てにだけ使い、通常の経路からは呼ばない。
+
+        戻り値は削除した件数。一括削除 API はエミュレータの版により未対応のことがあるため、
+        パーティション内の id を引いて 1 件ずつ確実に消す（対象は使い捨てで小さい）。
+        """
+        ids = [
+            str(item["id"])
+            for item in self._container.query_items(
+                query="SELECT c.id FROM c",
+                partition_key=product_id,
+            )
+        ]
+        for doc_id in ids:
+            self._container.delete_item(item=doc_id, partition_key=product_id)
+        return len(ids)
+
     def _conditional_write(
         self,
         *,
