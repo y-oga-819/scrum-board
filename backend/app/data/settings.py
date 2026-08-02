@@ -45,6 +45,11 @@ class CosmosSettings:
     # 証明書のため、E2E（EX-1）だけ COSMOS_TLS_VERIFY=0 で明示的に無効化する。層3の
     # 契約テスト（tests/contract/conftest.py）が同じ env で同じ切り替えをしている。
     tls_verify: bool = True
+    # データベースを自前で作るか。**既定 False（本番は infra が作る）**。provisioning.py の
+    # 設計どおり、本番は provision-azure.sh が DB を作りアプリはコンテナだけ作る。E2E
+    # （EX-1）は誰も DB を作らないため COSMOS_CREATE_DATABASE=1 で自前 provision する（層3の
+    # 契約テスト conftest が create_database_if_not_exists していたのと同じ役割）。
+    create_database: bool = False
 
     @property
     def is_configured(self) -> bool:
@@ -59,6 +64,8 @@ def cosmos_settings_from_env() -> CosmosSettings:
         database=os.environ.get("COSMOS_DATABASE", ""),
         # 明示的に "0" のときだけ無効化する。未設定・その他の値では検証する（fail-safe）。
         tls_verify=os.environ.get("COSMOS_TLS_VERIFY", "1") != "0",
+        # 明示的に "1" のときだけ自前作成する。未設定では作らない（本番は infra 前提）。
+        create_database=os.environ.get("COSMOS_CREATE_DATABASE", "0") == "1",
     )
 
 
@@ -85,8 +92,15 @@ def build_repository(
 
     ``create_container_if_not_exists`` により、コンテナが無ければ PK ``/productId`` ＋
     除外パス付きで作る（B-07）。既にあれば何もしない（冪等）。
+
+    データベースは既定では **既にある前提**で参照する（本番は infra が作る — provisioning.py）。
+    ``settings.create_database`` が真のときだけ ``create_database_if_not_exists`` で自前作成する
+    （E2E など DB を用意する主体がいない環境向け。EX-1）。
     """
-    database = client.get_database_client(settings.database)
+    if settings.create_database:
+        database = client.create_database_if_not_exists(id=settings.database)
+    else:
+        database = client.get_database_client(settings.database)
     container = ensure_container(database)
     return CosmosRepository(container, clock=clock)
 

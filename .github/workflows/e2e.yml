@@ -37,6 +37,8 @@ jobs:
       COSMOS_DATABASE: scrumboard-e2e
       # エミュレータは自己署名証明書。app の create_client もここを見て検証を切る（EX-1）。
       COSMOS_TLS_VERIFY: "0"
+      # E2E は誰も DB を作らないため、app と seeding が自前で作る（本番は infra 前提で既定 OFF）。
+      COSMOS_CREATE_DATABASE: "1"
       # 認証バイパスの固定ユーザーと、このランだけの隔離パーティション（prd_test_<runId>）。
       E2E_AUTH_OID: oid-e2e-ci
       E2E_RUN_ID: ci-${{ github.run_id }}-${{ github.run_attempt }}

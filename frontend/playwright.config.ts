@@ -24,6 +24,10 @@ import { defineConfig, devices } from '@playwright/test';
 // 設定していればそれを優先する。
 process.env.E2E_AUTH_OID ??= 'oid-e2e';
 process.env.E2E_RUN_ID ??= 'local';
+// E2E は誰も Cosmos DB を作らないため、app（webServer）と seeding が自前で
+// create_database_if_not_exists する（本番は infra 前提で既定 OFF — EX-1）。globalSetup と
+// webServer のどちらが先に起動しても冪等に DB を用意でき、起動順に依存しない。
+process.env.COSMOS_CREATE_DATABASE ??= '1';
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://localhost:8000';
 
