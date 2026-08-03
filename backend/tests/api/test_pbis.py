@@ -11,6 +11,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from app.api.backlog import router as backlog_router
 from app.api.pbis import router as pbis_router
 from app.auth import get_current_user_resolver
 from app.auth.resolver import AuthenticatedUser
@@ -497,3 +498,102 @@ def test_reorder_by_non_member_is_forbidden(repo: InMemoryRepository) -> None:
     )
 
     assert res.status_code == 403
+
+
+# --- 分割（B-19） ------------------------------------------------------------
+
+
+def test_split_creates_child_referencing_parent(client: TestClient) -> None:
+    parent = _create(client, title="大きな PBI")
+
+    res = client.post(f"{PBIS_URL}/{parent['id']}/split", json={"title": "切り出し"})
+
+    assert res.status_code == 201, res.text
+    child = res.json()
+    assert child["parentPbiId"] == parent["id"]  # 分割元を参照する
+    assert child["id"] != parent["id"]
+    assert child["id"].startswith("pbi_")
+    assert child["status"] == "new"  # 生成物は通常の PBI（始点は new）
+    assert child["title"] == "切り出し"
+    # 単一ドキュメント応答は ETag を返し、本文に _etag は載せない（D-20）。
+    assert res.headers.get("ETag")
+    assert "_etag" not in child
+
+
+def test_split_does_not_modify_parent(client: TestClient) -> None:
+    parent = _create(client, title="親")
+
+    client.post(f"{PBIS_URL}/{parent['id']}/split", json={"title": "子"})
+
+    # 参照は子→親の一方向。分割元は書き換わらない（更新ではなく作成）。
+    reloaded = client.get(f"{PBIS_URL}/{parent['id']}").json()
+    assert reloaded["parentPbiId"] is None
+
+
+def test_split_accepts_optional_fields(client: TestClient) -> None:
+    parent = _create(client, title="親")
+
+    res = client.post(
+        f"{PBIS_URL}/{parent['id']}/split",
+        json={
+            "title": "子",
+            "description": "説明",
+            "estimate": 5,
+            "acceptanceCriteria": [{"id": "ac1", "text": "満たす", "checked": False}],
+        },
+    )
+
+    child = res.json()
+    assert child["description"] == "説明"
+    assert child["estimate"] == 5
+    assert child["acceptanceCriteria"][0]["text"] == "満たす"
+
+
+def test_split_needs_no_if_match(client: TestClient) -> None:
+    # 分割元は変更しないため If-Match を要さない（作成であって更新ではない）。
+    parent = _create(client, title="親")
+
+    res = client.post(f"{PBIS_URL}/{parent['id']}/split", json={"title": "子"})
+
+    assert res.status_code == 201
+
+
+def test_split_missing_parent_is_404(client: TestClient) -> None:
+    res = client.post(f"{PBIS_URL}/pbi_missing/split", json={"title": "子"})
+
+    assert res.status_code == 404
+    assert res.headers["content-type"].startswith("application/problem+json")
+
+
+def test_split_rejects_empty_title(client: TestClient) -> None:
+    parent = _create(client, title="親")
+
+    res = client.post(f"{PBIS_URL}/{parent['id']}/split", json={"title": ""})
+
+    assert res.status_code == 422
+    assert res.json()["violations"]
+
+
+def test_split_by_non_member_is_forbidden(repo: InMemoryRepository) -> None:
+    member_client = _client(_build_app(repo), as_oid=MEMBER_OID)
+    parent = _create(member_client, title="親")
+
+    stranger = _client(_build_app(repo), as_oid=STRANGER_OID)
+    res = stranger.post(f"{PBIS_URL}/{parent['id']}/split", json={"title": "子"})
+
+    assert res.status_code == 403
+
+
+def test_split_appears_in_backlog(repo: InMemoryRepository) -> None:
+    # 生成した子は通常の PBI としてバックログに載り、parentPbiId で辿れる（B-17 集約）。
+    app = _build_app(repo)
+    app.include_router(backlog_router)
+    client = _client(app, as_oid=MEMBER_OID)
+
+    parent = _create(client, title="親")
+    child = client.post(f"{PBIS_URL}/{parent['id']}/split", json={"title": "子"}).json()
+
+    backlog = client.get(f"/api/products/{PRODUCT}/backlog").json()["pbis"]
+    by_id = {pbi["id"]: pbi for pbi in backlog}
+    assert child["id"] in by_id
+    assert by_id[child["id"]]["parentPbiId"] == parent["id"]

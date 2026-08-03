@@ -28,7 +28,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..authz import Membership, get_repository, require_member
 from ..data import Repository
 from ..data.errors import InvalidRankBoundsError
-from ..data.pbis import PbiStatus, create_pbi, get_pbi, is_valid_transition
+from ..data.pbis import PbiStatus, create_pbi, get_pbi, is_valid_transition, split_pbi
 from ..data.ranking import rank_between
 from ..http import (
     ProblemException,
@@ -144,6 +144,43 @@ def create(
         repo,
         product_id=membership.product_id,
         actor=membership.oid,
+        title=body.title,
+        description=body.description,
+        acceptance_criteria=[ac.model_dump() for ac in body.acceptanceCriteria],
+        estimate=body.estimate,
+    )
+    set_etag(response, doc)
+    return doc
+
+
+@router.post(
+    "/{pbi_id}/split",
+    status_code=status.HTTP_201_CREATED,
+    response_model=Pbi,
+    responses=problem_responses(401, 403, 404, 422, 503),
+)
+def split(
+    pbi_id: str,
+    body: PbiCreate,
+    response: Response,
+    membership: Membership = Depends(require_member),
+    repo: Repository = Depends(get_repository),
+) -> object:
+    """分割元 ``pbi_id`` を親に持つ子 PBI を作成する（B-19）。
+
+    大きな PBI を割って別の PBI を切り出す。生成物は通常の PBI（状態は ``new`` から）で、
+    ``parentPbiId`` に分割元の id を刻む——一覧から分割元を辿るための唯一の参照
+    （提案書 04章）。分割元は**変更しない**ため、これは新規作成であり ``If-Match`` を要さない
+    （更新経路 ``PATCH`` とは非対称。汎用 PATCH は ``parentPbiId`` を触らない — D-20）。
+    分割元が無ければ **404**（存在しないものからは分割できない）。入力（子のフィールド）は
+    :class:`PbiCreate` と同形——分割は「親を指す作成」であり、新しい入力語彙を増やさない。
+    """
+    _load_or_404(repo, membership.product_id, pbi_id)
+    doc = split_pbi(
+        repo,
+        product_id=membership.product_id,
+        actor=membership.oid,
+        parent_pbi_id=pbi_id,
         title=body.title,
         description=body.description,
         acceptance_criteria=[ac.model_dump() for ac in body.acceptanceCriteria],

@@ -131,6 +131,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/products/{product_id}/pbis/{pbi_id}/split": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Split
+         * @description 分割元 ``pbi_id`` を親に持つ子 PBI を作成する（B-19）。
+         *
+         *     大きな PBI を割って別の PBI を切り出す。生成物は通常の PBI（状態は ``new`` から）で、
+         *     ``parentPbiId`` に分割元の id を刻む——一覧から分割元を辿るための唯一の参照
+         *     （提案書 04章）。分割元は**変更しない**ため、これは新規作成であり ``If-Match`` を要さない
+         *     （更新経路 ``PATCH`` とは非対称。汎用 PATCH は ``parentPbiId`` を触らない — D-20）。
+         *     分割元が無ければ **404**（存在しないものからは分割できない）。入力（子のフィールド）は
+         *     :class:`PbiCreate` と同形——分割は「親を指す作成」であり、新しい入力語彙を増やさない。
+         */
+        post: operations["split_api_products__product_id__pbis__pbi_id__split_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/products/{product_id}/tasks": {
         parameters: {
             query?: never;
@@ -1129,6 +1156,78 @@ export interface operations {
             };
             /** @description Problem */
             428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    split_api_products__product_id__pbis__pbi_id__split_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pbi_id: string;
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PbiCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Pbi"];
+                };
+            };
+            /** @description Problem */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

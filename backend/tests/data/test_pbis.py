@@ -17,6 +17,7 @@ from app.data.pbis import (
     get_pbi,
     is_valid_transition,
     new_pbi_data,
+    split_pbi,
 )
 
 PRODUCT = "prd_sandbox"
@@ -145,6 +146,59 @@ def test_last_rank_is_none_on_empty_partition(repo: InMemoryRepository) -> None:
     from app.data.pbis import last_rank
 
     assert last_rank(repo, PRODUCT) is None
+
+
+# --- 分割（B-19） ------------------------------------------------------------
+
+
+def test_split_sets_parent_reference(repo: InMemoryRepository) -> None:
+    parent = create_pbi(repo, product_id=PRODUCT, actor=ACTOR, title="大きな PBI")
+
+    child = split_pbi(
+        repo, product_id=PRODUCT, actor=ACTOR, parent_pbi_id=parent["id"], title="切り出し"
+    )
+
+    # 子は分割元を参照する（辿るための唯一の参照）。
+    assert child["parentPbiId"] == parent["id"]
+    # それ以外は通常の PBI（状態は new から・独立して並び替え／編集できる）。
+    assert child["id"].startswith("pbi_")
+    assert child["type"] == "pbi"
+    assert child["status"] == "new"
+    assert child["title"] == "切り出し"
+    # 分割元は書き換えない（参照は子→親の一方向のみ）。
+    reloaded_parent = get_pbi(repo, product_id=PRODUCT, pbi_id=parent["id"])
+    assert reloaded_parent is not None
+    assert reloaded_parent["parentPbiId"] is None
+
+
+def test_split_appends_child_at_backlog_end(repo: InMemoryRepository) -> None:
+    parent = create_pbi(repo, product_id=PRODUCT, actor=ACTOR, title="親")
+    other = create_pbi(repo, product_id=PRODUCT, actor=ACTOR, title="別の PBI")
+
+    child = split_pbi(repo, product_id=PRODUCT, actor=ACTOR, parent_pbi_id=parent["id"], title="子")
+
+    # 末尾採番（create_pbi と同じ経路）。位置ではなく parentPbiId で辿らせる。
+    assert child["rank"] > other["rank"] > parent["rank"]
+
+
+def test_split_keeps_optional_fields(repo: InMemoryRepository) -> None:
+    parent = create_pbi(repo, product_id=PRODUCT, actor=ACTOR, title="親")
+    ac = [{"id": "ac1", "text": "満たす", "checked": False}]
+
+    child = split_pbi(
+        repo,
+        product_id=PRODUCT,
+        actor=ACTOR,
+        parent_pbi_id=parent["id"],
+        title="子",
+        description="説明",
+        acceptance_criteria=ac,
+        estimate=5,
+    )
+
+    assert child["description"] == "説明"
+    assert child["acceptanceCriteria"] == ac
+    assert child["estimate"] == 5
 
 
 # --- バックログ集約（B-17） --------------------------------------------------

@@ -265,4 +265,56 @@ describe('BacklogPage', () => {
       '実装',
     );
   });
+
+  // --- 分割（B-19） ----------------------------------------------------------
+
+  it('splits a PBI via POST .../split (no If-Match) and reloads the backlog', () => {
+    const fixture = render([pbi('pbi_a', '大きな PBI', '0|a:')]);
+    const [rowA] = rows(fixture);
+
+    rowA.querySelector<HTMLButtonElement>('.split')!.click();
+    fixture.detectChanges();
+
+    const input = rowA.querySelector<HTMLInputElement>('.split-form input')!;
+    input.value = '切り出し';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    rowA
+      .querySelector<HTMLFormElement>('.split-form')!
+      .dispatchEvent(new Event('submit', { cancelable: true }));
+
+    const split = httpMock.expectOne(`${BASE}/pbis/pbi_a/split`);
+    expect(split.request.method).toBe('POST');
+    // 作成であって更新ではないため If-Match は載せない（B-19）。
+    expect(split.request.headers.has('If-Match')).toBe(false);
+    expect(split.request.body.title).toBe('切り出し');
+    split.flush({});
+
+    // 作成後は集約 GET を引き直す（サーバーの並びを正とする）。
+    const child = { ...pbi('pbi_child', '切り出し', '0|b:'), parentPbiId: 'pbi_a' };
+    httpMock
+      .expectOne(`${BASE}/backlog`)
+      .flush({ pbis: [pbi('pbi_a', '大きな PBI', '0|a:'), child] });
+    fixture.detectChanges();
+    expect(rows(fixture).length).toBe(2);
+  });
+
+  it('traces a split child back to its parent via a link', () => {
+    const parent = pbi('pbi_parent', '親 PBI', '0|a:');
+    const child = { ...pbi('pbi_child', '子 PBI', '0|b:'), parentPbiId: 'pbi_parent' };
+    const fixture = render([parent, child]);
+
+    const link = rows(fixture)[1].querySelector<HTMLAnchorElement>('.parent-link')!;
+    expect(link).not.toBeNull();
+    // 分割元の名前を一覧から解決して示す。
+    expect(link.textContent).toContain('親 PBI');
+    // 分割元の詳細（B-18）へ辿れる。
+    expect(link.getAttribute('href')).toContain('/backlog/pbi_parent');
+  });
+
+  it('does not show a parent link for a PBI without a parent', () => {
+    const fixture = render([pbi('pbi_a', 'A', '0|a:')]);
+    expect(rows(fixture)[0].querySelector('.parent-link')).toBeNull();
+  });
 });
