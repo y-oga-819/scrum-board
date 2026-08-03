@@ -134,6 +134,48 @@ def create_pbi(
     )
 
 
+def split_pbi(
+    repo: Repository,
+    *,
+    product_id: str,
+    actor: str,
+    parent_pbi_id: str,
+    title: str,
+    description: str = "",
+    acceptance_criteria: list[Document] | None = None,
+    estimate: int | None = None,
+) -> Document:
+    """分割元（``parent_pbi_id``）を親に持つ子 PBI を1件作成する（B-19）。
+
+    「大きな PBI をより小さな PBI に割る」操作。生成物は :func:`create_pbi` と同じ**通常の
+    PBI**（状態は ``new`` から始まり、独立して並び替え・編集・完了できる）だが、唯一
+    ``parentPbiId`` に分割元の id を刻む点が違う。これにより一覧から分割元を辿れる（提案書
+    04章 ``parentPbiId``：分割元）。分割元自身は**変更しない**——親は子を指し返さず、参照は
+    子 → 親の一方向のみ（現在地の保持と同じく、参照は増やさない — 提案書 04章）。だから
+    この操作は更新ではなく**新規作成**で、``If-Match`` を要さない。
+
+    ``rank`` は :func:`create_pbi` と同じく**バックログの末尾**に採番する。分割元の直後へ
+    割り込ませないのは、同一 rank の隣接（タイブレークは id）へ ``rank_between`` すると
+    キーが衝突し得るため（:mod:`app.data.ranking` の警告）。位置ではなく ``parentPbiId``
+    の参照で辿らせる設計にし、末尾採番という壊れにくい1本の経路に寄せる。並べ替えたい
+    場合は通常の並び替え（``POST .../rank``）を使う。
+    """
+    data = new_pbi_data(
+        title=title,
+        description=description,
+        acceptance_criteria=acceptance_criteria,
+        estimate=estimate,
+    )
+    data["parentPbiId"] = parent_pbi_id
+    data["rank"] = rank_after(last_rank(repo, product_id))
+    return repo.create(
+        product_id=product_id,
+        doc_type=DocumentType.PBI,
+        data=data,
+        actor=actor,
+    )
+
+
 def list_backlog(repo: Repository, product_id: str) -> list[Document]:
     """バックログの PBI を**優先順位順**（``rank, id``）で返す（B-17・D-20）。
 
