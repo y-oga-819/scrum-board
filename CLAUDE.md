@@ -16,6 +16,12 @@ make typecheck   # 全型チェック（mypy / tsc）
 make build       # 本番相当の SPA バンドルをビルド
 ```
 
+> **⚠️ push 前は必ずこの make ターゲットで回す（スコープを絞らない）。**
+> CI は `uv run mypy`（引数なし＝設定に従い **`tests/` も含む** 全ソース）や `uv run pytest`
+> を回す。手元で `mypy app/` のように**対象を絞ると、テストコードの型エラーを見逃したまま
+> push して CI で落ちる。** 型チェック・テストは常に `make typecheck` / `make test`
+> （＝ CI と同じ全体）で確認してから push すること。lint も同様に `make lint`。
+
 ## コミットの粒度
 
 **1 PR = 1 コミット にしない。** 変更が数百行に及ぶ場合、1 つの巨大コミットに
