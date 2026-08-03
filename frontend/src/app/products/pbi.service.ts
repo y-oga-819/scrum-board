@@ -57,6 +57,20 @@ export class PbiService {
   }
 
   /**
+   * 分割元 `parentPbiId` を親に持つ子 PBI を作る（`POST .../{parentPbiId}/split`。B-19）。
+   *
+   * 生成物は通常の PBI で、`parentPbiId` に分割元を刻む（一覧から分割元を辿る唯一の参照）。
+   * 分割元は変更しないため `If-Match` は要らない（作成であって更新ではない — D-20）。入力は
+   * 作成と同形（`PbiCreate`）。分割元が無ければサーバーが 404 を返す。
+   */
+  split(productId: string, parentPbiId: string, body: PbiCreate): Observable<Pbi> {
+    return this.http.post<Pbi>(
+      `${this.base(productId)}/${encodeURIComponent(parentPbiId)}/split`,
+      body,
+    );
+  }
+
+  /**
    * PBI を 1 件取得する（詳細画面の初期表示。B-18）。
    *
    * 単一ドキュメント応答の版は**本文でなく `ETag` ヘッダ**で返る（集約 GET の各要素が

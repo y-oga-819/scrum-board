@@ -70,6 +70,16 @@ export class BacklogPage implements OnInit {
   /** 入力中のタスクタイトル。 */
   protected newTaskTitle = '';
 
+  /** 分割フォームを開いている PBI の id（無ければ null）。1 つずつ開く。 */
+  protected readonly splitFormPbiId = signal<string | null>(null);
+  /** 入力中の子 PBI タイトル。 */
+  protected newChildTitle = '';
+
+  /** id → title の索引。分割元（`parentPbiId`）の名前を一覧上で辿るために引く。 */
+  protected readonly titleById = computed(
+    () => new Map(this.pbis().map((pbi) => [pbi.id, pbi.title])),
+  );
+
   /** ドラッグ中の PBI id（ドロップ先の計算に使う）。 */
   private draggingId: string | null = null;
 
@@ -165,6 +175,47 @@ export class BacklogPage implements OnInit {
       },
       error: (err) => this.reportProblem(err, 'タスクの追加に失敗しました。'),
     });
+  }
+
+  // --- 分割（B-19） ----------------------------------------------------------
+
+  /** ある PBI の分割フォームを開く（同時に開くのは 1 つ）。 */
+  protected openSplitForm(pbi: BacklogPbi): void {
+    this.errorMessage.set('');
+    this.newChildTitle = '';
+    this.splitFormPbiId.set(pbi.id);
+  }
+
+  protected cancelSplit(): void {
+    this.splitFormPbiId.set(null);
+  }
+
+  /**
+   * 分割元 `pbi` から子 PBI を切り出す。子は `parentPbiId` に分割元を刻んだ通常の PBI で、
+   * バックログ末尾に積まれる（位置ではなく参照で辿る — B-19）。作成後は集約 GET を引き直し、
+   * サーバーの並び・版を正とする。
+   */
+  protected submitSplit(pbi: BacklogPbi): void {
+    const title = this.newChildTitle.trim();
+    const productId = this.productId();
+    if (title === '' || productId === '') {
+      return;
+    }
+    this.errorMessage.set('');
+    this.pbiApi
+      .split(productId, pbi.id, { title, description: '', acceptanceCriteria: [] })
+      .subscribe({
+        next: () => {
+          this.splitFormPbiId.set(null);
+          this.load(productId);
+        },
+        error: (err) => this.reportProblem(err, '分割に失敗しました。'),
+      });
+  }
+
+  /** 分割元の表示名（一覧に無ければ空文字＝辿れないことを示す）。 */
+  protected parentTitle(parentPbiId: string): string {
+    return this.titleById().get(parentPbiId) ?? '';
   }
 
   /** ステータスを変更する。遷移の正当性はサーバーが判定し、不正なら 422 を表示する。 */

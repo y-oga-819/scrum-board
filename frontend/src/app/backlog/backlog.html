@@ -62,6 +62,17 @@
               <div class="pbi-main">
                 <span class="handle" aria-hidden="true">⠿</span>
                 <span class="title">{{ pbi.title }}</span>
+                <!-- 分割元（B-19）。子 → 親の一方向参照を一覧から辿れるようにする。 -->
+                @if (pbi.parentPbiId) {
+                  <a
+                    class="parent-link"
+                    draggable="false"
+                    [routerLink]="['/backlog', pbi.parentPbiId]"
+                    title="分割元へ"
+                  >
+                    ↳ 分割元: {{ parentTitle(pbi.parentPbiId) || '（一覧外）' }}
+                  </a>
+                }
                 <label class="status">
                   <span class="visually-hidden">ステータス</span>
                   <select [value]="pbi.status" (change)="changeStatus(pbi, $event)">
@@ -74,7 +85,32 @@
                 </label>
                 <!-- 詳細（B-18）へドリルダウン。行のドラッグと競合しないよう自身の drag は無効化。 -->
                 <a class="detail-link" draggable="false" [routerLink]="['/backlog', pbi.id]">詳細</a>
+                <button type="button" class="split" draggable="false" (click)="openSplitForm(pbi)">
+                  分割
+                </button>
               </div>
+
+              <!-- 分割フォーム（B-19）。子 PBI のタイトルだけを受け取り、末尾に積む。 -->
+              @if (splitFormPbiId() === pbi.id) {
+                <form
+                  class="split-form"
+                  draggable="false"
+                  (submit)="submitSplit(pbi); $event.preventDefault()"
+                >
+                  <label class="visually-hidden" [attr.for]="'split-title-' + pbi.id">
+                    分割後のタイトル
+                  </label>
+                  <input
+                    #splitInput
+                    [id]="'split-title-' + pbi.id"
+                    autocomplete="off"
+                    placeholder="分割後の PBI のタイトル"
+                    (input)="newChildTitle = splitInput.value"
+                  />
+                  <button type="submit" class="primary">分割する</button>
+                  <button type="button" (click)="cancelSplit()">キャンセル</button>
+                </form>
+              }
 
               <!-- 配下タスク（B-20）。並びの正はサーバー（GET /backlog が rank, id 順で束ねる）。 -->
               <div class="pbi-tasks" draggable="false">

@@ -38,6 +38,19 @@ describe('PbiService', () => {
     req.flush({});
   });
 
+  it('splits a PBI via POST .../{parent}/split without If-Match (create, not update)', () => {
+    service
+      .split(PRODUCT, 'pbi_parent', { title: '切り出し', description: '', acceptanceCriteria: [] })
+      .subscribe();
+
+    const req = httpMock.expectOne(`${BASE}/pbis/pbi_parent/split`);
+    expect(req.request.method).toBe('POST');
+    // 分割元は変更しないので If-Match は載せない（B-19・D-20）。
+    expect(req.request.headers.has('If-Match')).toBe(false);
+    expect(req.request.body.title).toBe('切り出し');
+    req.flush({});
+  });
+
   it('sends If-Match when changing status (optimistic concurrency is required)', () => {
     service.updateStatus(PRODUCT, 'pbi_1', '"etag-1"', 'ready').subscribe();
 
