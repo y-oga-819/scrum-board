@@ -166,7 +166,9 @@ def test_split_sets_parent_reference(repo: InMemoryRepository) -> None:
     assert child["status"] == "new"
     assert child["title"] == "切り出し"
     # 分割元は書き換えない（参照は子→親の一方向のみ）。
-    assert get_pbi(repo, product_id=PRODUCT, pbi_id=parent["id"])["parentPbiId"] is None
+    reloaded_parent = get_pbi(repo, product_id=PRODUCT, pbi_id=parent["id"])
+    assert reloaded_parent is not None
+    assert reloaded_parent["parentPbiId"] is None
 
 
 def test_split_appends_child_at_backlog_end(repo: InMemoryRepository) -> None:
