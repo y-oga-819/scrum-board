@@ -158,6 +158,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/products/{product_id}/sprints": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List All
+         * @description スプリントを**番号順**で一覧する。各要素が ``_etag`` を本文に持つ（D-20）。
+         */
+        get: operations["list_all_api_products__product_id__sprints_get"];
+        put?: never;
+        /**
+         * Create
+         * @description スプリントを1件作成する。状態は必ず ``planned`` から始まる。
+         */
+        post: operations["create_api_products__product_id__sprints_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/products/{product_id}/sprints/{sprint_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get One
+         * @description スプリントを1件取得する。存在しない／論理削除済みは 404（存在を漏らさない）。
+         */
+        get: operations["get_one_api_products__product_id__sprints__sprint_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete
+         * @description スプリントを論理削除する（物理削除しない。D-07）。以後 GET は 404。
+         */
+        delete: operations["delete_api_products__product_id__sprints__sprint_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update
+         * @description スプリントを部分更新する。``status`` の遷移と期間の破れを更新前に確かめる。
+         */
+        patch: operations["update_api_products__product_id__sprints__sprint_id__patch"];
+        trace?: never;
+    };
     "/api/products/{product_id}/tasks": {
         parameters: {
             query?: never;
@@ -533,6 +585,120 @@ export interface components {
             afterId?: string | null;
             /** Beforeid */
             beforeId?: string | null;
+        };
+        /**
+         * Sprint
+         * @description スプリントの応答表現（提案書 04章のフィールド）。
+         *
+         *     単一ドキュメント応答（作成・取得・更新）では ``_etag`` を本文に載せず ``ETag``
+         *     ヘッダで返すため ``extra='ignore'`` で捨てる。一覧は :class:`SprintListItem` が
+         *     ``_etag`` を本文に持たせる（集約 GET と同じ非対称 — D-20）。
+         */
+        Sprint: {
+            /** Createdat */
+            createdAt: string;
+            /** Createdby */
+            createdBy: string;
+            /** Enddate */
+            endDate: string | null;
+            /** Goal */
+            goal: string;
+            /** Id */
+            id: string;
+            /** Isdeleted */
+            isDeleted: boolean;
+            /** Number */
+            number: number;
+            /** Productid */
+            productId: string;
+            /** Startdate */
+            startDate: string | null;
+            status: components["schemas"]["SprintStatus"];
+            /** Type */
+            type: string;
+            /** Updatedat */
+            updatedAt: string;
+            /** Updatedby */
+            updatedBy: string;
+        };
+        /**
+         * SprintCreate
+         * @description スプリント作成の入力。期間・ゴールは任意（計画中は未定のことがある）。
+         *
+         *     ``number`` はサーバーが連番採番するため受け取らない（クライアントに採番させない）。
+         *     ``status`` も受け取らない——作成時は必ず ``planned`` から始まる。
+         */
+        SprintCreate: {
+            /** Enddate */
+            endDate?: string | null;
+            /**
+             * Goal
+             * @default
+             */
+            goal: string;
+            /** Startdate */
+            startDate?: string | null;
+        };
+        /**
+         * SprintListItem
+         * @description 一覧の1要素。集約 GET と同じく各要素が版（``_etag``）を本文で運ぶ（D-20）。
+         *
+         *     一覧応答全体では単一の ``ETag`` を返せないため、フロントは各要素の ``_etag`` を
+         *     そのスプリントへの ``PATCH`` / ``DELETE`` の ``If-Match`` にそのまま載せる。
+         */
+        SprintListItem: {
+            /** Etag */
+            _etag: string;
+            /** Createdat */
+            createdAt: string;
+            /** Createdby */
+            createdBy: string;
+            /** Enddate */
+            endDate: string | null;
+            /** Goal */
+            goal: string;
+            /** Id */
+            id: string;
+            /** Isdeleted */
+            isDeleted: boolean;
+            /** Number */
+            number: number;
+            /** Productid */
+            productId: string;
+            /** Startdate */
+            startDate: string | null;
+            status: components["schemas"]["SprintStatus"];
+            /** Type */
+            type: string;
+            /** Updatedat */
+            updatedAt: string;
+            /** Updatedby */
+            updatedBy: string;
+        };
+        /**
+         * SprintStatus
+         * @description スプリントの状態（提案書 04章 ``status:"planned | active | closed"``）。
+         *
+         *     PBI の ``new`` / ``ready`` / … やタスクの ``todo`` / ``doing`` / ``done`` とは別の
+         *     語彙。前進のみで、``closed`` は終端（終了処理 B-25 を経た後は戻さない）。
+         * @enum {string}
+         */
+        SprintStatus: "planned" | "active" | "closed";
+        /**
+         * SprintUpdate
+         * @description スプリント更新の入力（部分更新）。**送られたフィールドだけ**を反映する。
+         *
+         *     ``number`` は載せない（採番はサーバーが所有し、後から振り直さない）。``status`` は
+         *     状態機械（planned → active → closed）を通してのみ動かす。
+         */
+        SprintUpdate: {
+            /** Enddate */
+            endDate?: string | null;
+            /** Goal */
+            goal?: string | null;
+            /** Startdate */
+            startDate?: string | null;
+            status?: components["schemas"]["SprintStatus"] | null;
         };
         /**
          * Task
@@ -1228,6 +1394,368 @@ export interface operations {
             };
             /** @description Problem */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_all_api_products__product_id__sprints_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SprintListItem"][];
+                };
+            };
+            /** @description Problem */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Problem */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_api_products__product_id__sprints_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SprintCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Sprint"];
+                };
+            };
+            /** @description Problem */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_one_api_products__product_id__sprints__sprint_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sprint_id: string;
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Sprint"];
+                };
+            };
+            /** @description Problem */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Problem */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_api_products__product_id__sprints__sprint_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sprint_id: string;
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Problem */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Problem */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_api_products__product_id__sprints__sprint_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sprint_id: string;
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SprintUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Sprint"];
+                };
+            };
+            /** @description Problem */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            428: {
                 headers: {
                     [name: string]: unknown;
                 };
