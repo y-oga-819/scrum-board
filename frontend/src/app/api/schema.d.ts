@@ -219,10 +219,11 @@ export interface paths {
         };
         /**
          * Read Board
-         * @description ボードを 1 往復返す。スプリント情報＋そのスプリントのタスク（各要素に ``_etag``）。
+         * @description ボードを 1 往復返す。スプリント情報＋そのスプリントのタスク（各要素に ``_etag``）＋進捗。
          *
          *     スプリントが存在しない／論理削除済みなら 404（存在を漏らさない）。タスクは ``sprintId``
-         *     が一致するもの（pbi・team を問わない）を ``rank, id`` 順で返す。
+         *     が一致するもの（pbi・team を問わない）を ``rank, id`` 順で返す。進捗（2本バー＋営業日
+         *     マーカー）は同じ ``tasks`` から数え、追加クエリを撃たない（B-24）。
          */
         get: operations["read_board_api_products__product_id__sprints__sprint_id__board_get"];
         put?: never;
@@ -457,14 +458,16 @@ export interface components {
         };
         /**
          * BoardResponse
-         * @description スプリント画面の集約応答（B-23・D-20）。
+         * @description スプリント画面の集約応答（B-23・B-24・D-20）。
          *
          *     ``sprint`` はボード見出しの表示に使う（この画面ではスプリント自身は更新しないため
          *     ``_etag`` は持たせない。編集導線が要るのは終了処理 B-25）。``tasks`` はこのスプリントに
-         *     属するタスクを ``rank, id`` 順で並べたもの（各要素が ``_etag`` を持つ）。進捗集計
-         *     （2本バー）は B-24 がここに ``progress`` を足すため**オブジェクトで包む**。
+         *     属するタスクを ``rank, id`` 順で並べたもの（各要素が ``_etag`` を持つ）。``progress`` は
+         *     2本バーの分子分母＋営業日マーカー（B-24）。件数は ``tasks`` から数えるだけで追加クエリを
+         *     撃たない。
          */
         BoardResponse: {
+            progress: components["schemas"]["Progress"];
             sprint: components["schemas"]["Sprint"];
             /** Tasks */
             tasks: components["schemas"]["BoardTask"][];
@@ -672,6 +675,33 @@ export interface components {
             productId: string;
             /** Role */
             role: string;
+        };
+        /**
+         * Progress
+         * @description スプリントの進捗（2本バー＋営業日マーカー。B-24・提案書 05章）。
+         *
+         *     ``planned``（計画タスク＝ ``taskType='pbi'``）と ``team``（チームタスク＝
+         *     ``taskType='team'``）の2本を返す。マーカー位置は ``elapsedBusinessDays /
+         *     totalBusinessDays``（経過営業日 ÷ 総営業日）。期間（``startDate`` / ``endDate``）が
+         *     未設定なら営業日は **``null``**——フロントはマーカーを描かない（P-1）。
+         */
+        Progress: {
+            /** Elapsedbusinessdays */
+            elapsedBusinessDays: number | null;
+            planned: components["schemas"]["ProgressBar"];
+            team: components["schemas"]["ProgressBar"];
+            /** Totalbusinessdays */
+            totalBusinessDays: number | null;
+        };
+        /**
+         * ProgressBar
+         * @description 2本バーの1本（完了 ``done`` / 総数 ``total``。提案書 05章）。
+         */
+        ProgressBar: {
+            /** Done */
+            done: number;
+            /** Total */
+            total: number;
         };
         /**
          * RankMove

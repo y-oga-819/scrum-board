@@ -24,6 +24,32 @@ const COLUMNS: { status: TaskStatus; label: string }[] = [
   { status: 'done', label: '完了' },
 ];
 
+/** 2本バーの1本ぶんの描画モデル（提案書 05章）。件数はサーバー由来、幅は描画のための導出。 */
+interface BarView {
+  /** バーの見出し（計画タスク / チームタスク）。 */
+  label: string;
+  /** 完了数（分子）。 */
+  done: number;
+  /** 総数（分母）。 */
+  total: number;
+  /** 種別（色の出し分けに使う。**警告ではなく種別の区別のみ** — P-1 / D-13）。 */
+  kind: 'planned' | 'team';
+  /** 共通目盛に対するこのバー（トラック）の幅（%）。2本の長さの対比が読めるようにする。 */
+  trackPct: number;
+  /** トラック内での完了ぶんの幅（% = done / total）。 */
+  fillPct: number;
+}
+
+/** 進捗パネル全体の描画モデル（2本バー＋営業日マーカー）。 */
+interface ProgressView {
+  planned: BarView;
+  team: BarView;
+  elapsedBusinessDays: number | null;
+  totalBusinessDays: number | null;
+  /** 計画タスクのトラック内でのマーカー位置（% = 経過営業日 / 総営業日）。期間未設定なら null。 */
+  markerPct: number | null;
+}
+
 /**
  * スプリント画面のボード（画面B。B-23）。2画面構成の2枚目（D-21）。
  *
@@ -70,6 +96,44 @@ export class BoardPage implements OnInit {
 
   protected readonly selectedProduct = this.products.selected;
   protected readonly productId = computed(() => this.selectedProduct()?.productId ?? '');
+
+  /**
+   * 進捗の2本バー＋営業日マーカーの描画モデル（提案書 05章・B-24）。
+   *
+   * 件数（分子・分母）と営業日はサーバーが数えて返す（`GET /board` の `progress`）。ここでは
+   * **描画のための導出だけ**を行う——2本のバーを**共通目盛**（分母の大きい方）で並べ、長さが
+   * そのまま件数比になるようにする。マーカーは計画タスクのトラック内で経過営業日 ÷ 総営業日の
+   * 位置に置く。期間が未設定（`totalBusinessDays === null`）ならマーカーは描かない（P-1）。
+   */
+  protected readonly progressView = computed<ProgressView | null>(() => {
+    const progress = this.board()?.progress;
+    if (!progress) {
+      return null;
+    }
+    // 共通目盛は2本の分母の大きい方（0 のときも割れないよう 1 で下支え）。
+    const scale = Math.max(progress.planned.total, progress.team.total, 1);
+    const bar = (label: string, b: { done: number; total: number }, kind: 'planned' | 'team') => ({
+      label,
+      done: b.done,
+      total: b.total,
+      kind,
+      trackPct: (b.total / scale) * 100,
+      fillPct: b.total > 0 ? (b.done / b.total) * 100 : 0,
+    });
+    const total = progress.totalBusinessDays;
+    const elapsed = progress.elapsedBusinessDays;
+    const markerPct =
+      total !== null && total > 0 && elapsed !== null
+        ? Math.min(elapsed / total, 1) * 100
+        : null;
+    return {
+      planned: bar('計画タスク', progress.planned, 'planned'),
+      team: bar('チームタスク', progress.team, 'team'),
+      elapsedBusinessDays: elapsed,
+      totalBusinessDays: total,
+      markerPct,
+    };
+  });
 
   /** カラム（status）→ そのタスク列（サーバーの並びを保つ。ここでは再ソートしない）。 */
   protected readonly tasksByStatus = computed(() => {

@@ -21,6 +21,7 @@ from fastapi.responses import FileResponse
 
 from .api import routers as api_routers
 from .config import spa_dist_dir
+from .data.clock import SystemClock
 from .data.migrations import run_migrations
 from .data.settings import build_repository, cosmos_settings_from_env, create_client
 from .http import install_error_handlers, install_openapi
@@ -41,6 +42,9 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
     起動する**（``app.state.repository`` は ``None``）。DB を要する工程で
     ``COSMOS_ENDPOINT`` / ``COSMOS_KEY`` / ``COSMOS_DATABASE`` を与えると点灯する。
     """
+    # 営業日マーカー（B-24）の「今日」を供給する時計。本番は UTC 実時計、テストは固定時計に
+    # 差し替える（get_clock が app.state から取る — repository と同型）。
+    application.state.clock = SystemClock()
     settings = cosmos_settings_from_env()
     client = None
     application.state.repository = None
