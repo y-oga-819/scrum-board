@@ -13,6 +13,8 @@ GET が正しい版を運ぶこと（その ``_etag`` で ``PATCH`` が通るこ
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -92,6 +94,26 @@ def _seed_task(repo: InMemoryRepository, *, title: str, sprint_id: str | None) -
     data = new_task_data(task_type=TaskType.TEAM, title=title)
     data["sprintId"] = sprint_id
     return repo.create(product_id=PRODUCT, doc_type=DocumentType.TASK, data=data, actor=MEMBER_OID)
+
+
+def _seed_pbi_task(
+    repo: InMemoryRepository, *, title: str, sprint_id: str | None, status: str = "todo"
+) -> dict:
+    """pbi タスクを 1 件、``sprintId`` と ``status`` を指定して直接シードする（進捗集計用）。"""
+    data = new_task_data(task_type=TaskType.PBI, title=title, pbi_id="pbi_x")
+    data["sprintId"] = sprint_id
+    data["status"] = status
+    return repo.create(product_id=PRODUCT, doc_type=DocumentType.TASK, data=data, actor=MEMBER_OID)
+
+
+class _FixedClock:
+    """固定時刻を返すテスト用時計（営業日マーカーの「今日」を固定する — D-19）。"""
+
+    def __init__(self, moment: datetime) -> None:
+        self._moment = moment
+
+    def now(self) -> datetime:
+        return self._moment
 
 
 def _board_url(sprint_id: str) -> str:
@@ -186,3 +208,47 @@ def test_board_without_db_is_503() -> None:
     res = client.get(_board_url("spr_anything"))
 
     assert res.status_code == 503
+
+
+# --- 進捗（2本バー＋営業日マーカー。B-24） ---------------------------------------
+
+
+def test_board_progress_counts_planned_and_team_bars(
+    client: TestClient, repo: InMemoryRepository
+) -> None:
+    sprint = _create_sprint(client)
+    _seed_pbi_task(repo, title="計画1", sprint_id=sprint["id"], status="done")
+    _seed_pbi_task(repo, title="計画2", sprint_id=sprint["id"], status="todo")
+    _seed_task(repo, title="チーム1", sprint_id=sprint["id"])  # team / todo
+
+    progress = client.get(_board_url(sprint["id"])).json()["progress"]
+
+    assert progress["planned"] == {"done": 1, "total": 2}
+    assert progress["team"] == {"done": 0, "total": 1}
+
+
+def test_board_progress_marker_uses_business_days_and_injected_today(
+    repo: InMemoryRepository,
+) -> None:
+    # 「今日」を 2026-08-06 の JST 日付に固定（16:00Z は翌日になるので午前 UTC を使う）。
+    app = _build_app(repo)
+    app.state.clock = _FixedClock(datetime(2026, 8, 6, 3, 0, tzinfo=UTC))
+    client = _client(app, as_oid=MEMBER_OID)
+    # 08-03(月)〜08-14(金)。08-11(火)は山の日。営業日総数は 9、08-06 時点の経過は 4。
+    sprint = client.post(
+        SPRINTS_URL, json={"goal": "", "startDate": "2026-08-03", "endDate": "2026-08-14"}
+    ).json()
+
+    progress = client.get(_board_url(sprint["id"])).json()["progress"]
+
+    assert progress["totalBusinessDays"] == 9
+    assert progress["elapsedBusinessDays"] == 4
+
+
+def test_board_progress_has_null_marker_when_period_unset(client: TestClient) -> None:
+    sprint = _create_sprint(client)  # 期間なし（goal のみ）
+
+    progress = client.get(_board_url(sprint["id"])).json()["progress"]
+
+    assert progress["totalBusinessDays"] is None
+    assert progress["elapsedBusinessDays"] is None

@@ -49,6 +49,62 @@
           }
         </div>
 
+        <!-- 進捗の2本バー（提案書 05章・B-24）。数字が主役、バーは従。目盛は両者で共通なので
+             長さがそのまま件数比になる。警告色は使わず、色は種別（計画/チーム）の区別のみ
+             （P-1 / D-13）。 -->
+        @if (progressView(); as progress) {
+          <section class="progress" aria-label="進捗">
+            <!-- 計画タスク: マーカー（経過営業日）付き。 -->
+            <div class="bar-row">
+              <div class="bar-head">
+                <span class="bar-label">{{ progress.planned.label }}</span>
+                <span class="bar-count"
+                  >完了 {{ progress.planned.done }} / {{ progress.planned.total }}</span
+                >
+              </div>
+              <div class="bar-track">
+                <div class="bar-outline" [style.width.%]="progress.planned.trackPct">
+                  <div class="bar-fill planned" [style.width.%]="progress.planned.fillPct"></div>
+                  @if (progress.markerPct !== null) {
+                    <div
+                      class="bar-marker"
+                      [style.left.%]="progress.markerPct"
+                      [attr.aria-label]="
+                        progress.elapsedBusinessDays +
+                        ' / ' +
+                        progress.totalBusinessDays +
+                        ' 営業日が経過'
+                      "
+                    ></div>
+                  }
+                </div>
+              </div>
+              @if (progress.totalBusinessDays !== null) {
+                <p class="bar-note">
+                  {{ progress.elapsedBusinessDays }} / {{ progress.totalBusinessDays }} 営業日が経過
+                </p>
+              } @else {
+                <p class="bar-note muted">期間が未設定です</p>
+              }
+            </div>
+
+            <!-- チームタスク: 構成比。マーカーは持たない（伸びるものではない）。 -->
+            <div class="bar-row">
+              <div class="bar-head">
+                <span class="bar-label">{{ progress.team.label }}</span>
+                <span class="bar-count"
+                  >完了 {{ progress.team.done }} / {{ progress.team.total }}</span
+                >
+              </div>
+              <div class="bar-track">
+                <div class="bar-outline" [style.width.%]="progress.team.trackPct">
+                  <div class="bar-fill team" [style.width.%]="progress.team.fillPct"></div>
+                </div>
+              </div>
+            </div>
+          </section>
+        }
+
         <div class="columns">
           @for (column of columns; track column.status) {
             <section class="column">

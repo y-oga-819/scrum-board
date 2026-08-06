@@ -94,8 +94,18 @@ describe('BoardPage', () => {
     )!;
   }
 
-  function board(sprintId: string, tasks: BoardTask[]): Board {
-    return { sprint: { ...sprint(sprintId, 1, 'active') }, tasks };
+  function progress(overrides?: Partial<Board['progress']>): Board['progress'] {
+    return {
+      planned: { done: 0, total: 0 },
+      team: { done: 0, total: 0 },
+      elapsedBusinessDays: null,
+      totalBusinessDays: null,
+      ...overrides,
+    };
+  }
+
+  function board(sprintId: string, tasks: BoardTask[], prog = progress()): Board {
+    return { sprint: { ...sprint(sprintId, 1, 'active') }, tasks, progress: prog };
   }
 
   it('groups tasks into the todo/doing/done columns by status (derived)', () => {
@@ -180,6 +190,54 @@ describe('BoardPage', () => {
     expect((host.querySelector('.error') as HTMLElement)?.textContent).toContain(
       CONCURRENCY_CONFLICT_MESSAGE,
     );
+  });
+
+  // --- 進捗の2本バー（提案書 05章・B-24） ---------------------------------------
+
+  it('renders the two progress bars with server-provided counts', () => {
+    const fixture = render(
+      [sprint('spr_1', 1, 'active')],
+      board('spr_1', [], progress({ planned: { done: 12, total: 22 }, team: { done: 3, total: 5 } })),
+    );
+    const host = fixture.nativeElement as HTMLElement;
+    const counts = Array.from(host.querySelectorAll('.progress .bar-count')).map(
+      (el) => el.textContent?.trim(),
+    );
+    expect(counts).toEqual(['完了 12 / 22', '完了 3 / 5']);
+  });
+
+  it('scales both bars on a common unit so lengths are comparable', () => {
+    // 共通目盛は分母の大きい方（22）。計画の outline は 100%、チームは 5/22 の幅になる。
+    const fixture = render(
+      [sprint('spr_1', 1, 'active')],
+      board('spr_1', [], progress({ planned: { done: 12, total: 22 }, team: { done: 3, total: 5 } })),
+    );
+    const host = fixture.nativeElement as HTMLElement;
+    const outlines = host.querySelectorAll<HTMLElement>('.progress .bar-outline');
+    expect(outlines[0].style.width).toBe('100%');
+    expect(parseFloat(outlines[1].style.width)).toBeCloseTo((5 / 22) * 100, 3);
+    // 計画バーの完了ぶんは outline 内で done/total。
+    const plannedFill = host.querySelector<HTMLElement>('.bar-fill.planned')!;
+    expect(parseFloat(plannedFill.style.width)).toBeCloseTo((12 / 22) * 100, 3);
+  });
+
+  it('places the business-day marker at elapsed / total on the planned bar', () => {
+    const fixture = render(
+      [sprint('spr_1', 1, 'active')],
+      board('spr_1', [], progress({ elapsedBusinessDays: 8, totalBusinessDays: 10 })),
+    );
+    const host = fixture.nativeElement as HTMLElement;
+    const marker = host.querySelector<HTMLElement>('.bar-marker')!;
+    expect(marker).not.toBeNull();
+    expect(parseFloat(marker.style.left)).toBeCloseTo(80, 3); // 8/10
+    expect(host.querySelector('.bar-note')?.textContent).toContain('8 / 10 営業日が経過');
+  });
+
+  it('hides the marker and notes an unset period when the sprint has no dates', () => {
+    const fixture = render([sprint('spr_1', 1, 'active')], board('spr_1', []));
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.querySelector('.bar-marker')).toBeNull();
+    expect(host.querySelector('.bar-note')?.textContent).toContain('期間が未設定');
   });
 
   it('toggles the blocked flag with If-Match, then reloads', () => {
