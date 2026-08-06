@@ -1,19 +1,71 @@
 import { expect, test } from '@playwright/test';
 
 /**
- * 主要フロー 4/5: スプリント終了処理。
+ * 主要フロー 4/5: スプリント終了処理（B-25）。
  *
- * **完了タスクは動かさず、未完了だけ次スプリントへ持ち越す**（不変条件 I-5）。
- * 持ち越し対象はプレビューしてから確定する（B-25・D-20）。それまで fixme。
+ * **完了タスクは動かさず、未完了だけを次スプリントへ持ち越す**（不変条件 I-5）。持ち越し
+ * 対象はプレビューしてから確定する（D-20。強制も警告もせず事実だけ見せる — P-1）。
+ *
+ * サインインは EX-1・D-22 の実行方式（フロントは e2e ビルドで MSAL 無効・バックエンドは env
+ * ゲートの resolver）。既知の初期状態は `globalSetup` が `prd_test_<runId>` に seeding する。
+ * スプリントはこのフロー内でプランニング右ペインから作る（seeding には積まない）。他フローと
+ * 同じ partition を共有するため、タイトルはこのフロー固有にする（EX-1/D-22）。
  */
-test.fixme('スプリント終了で未完了だけが持ち越され、完了タスクは動かない', async ({ page }) => {
-  await page.goto('/');
-  // TODO(B-25): 「スプリントを終了」→ 持ち越しプレビュー → 確定 の導線に置き換える。
-  await page.getByRole('button', { name: 'スプリントを終了' }).click();
-  await expect(page.getByRole('dialog', { name: '持ち越しプレビュー' })).toBeVisible();
-  await page.getByRole('button', { name: '確定' }).click();
+test('スプリント終了で未完了だけが持ち越され、完了タスクは動かない', async ({ page }) => {
+  await page.goto('/backlog');
 
-  // I-5: 完了タスクは次スプリントに現れない（sprintId を変えない）。
-  await expect(page.getByText('未完了タスク')).toBeVisible();
-  await expect(page.getByText('完了タスク')).toHaveCount(0);
+  // タスクを2件持つ PBI を1件作る（1件は完了・1件は未完了にして I-5 を確かめる）。
+  const pbiTitle = 'フロー4の PBI';
+  await page.getByRole('button', { name: 'PBI を追加' }).click();
+  await page.getByLabel('タイトル').fill(pbiTitle);
+  await page.getByRole('button', { name: '保存' }).click();
+  await expect(page.getByText(pbiTitle)).toBeVisible();
+
+  // 以降の操作はこの PBI の行にスコープする（他フローの同名ボタンと衝突させない）。
+  const row = page.locator('.pbi-row').filter({ hasText: pbiTitle });
+  const doneTitle = 'フロー4の完了タスク';
+  const keepTitle = 'フロー4の未完了タスク';
+  for (const taskTitle of [doneTitle, keepTitle]) {
+    await row.getByRole('button', { name: 'タスクを追加' }).click();
+    await row.getByLabel('タスク名').fill(taskTitle);
+    await row.getByRole('button', { name: '追加', exact: true }).click();
+    await expect(row.getByText(taskTitle)).toBeVisible();
+  }
+
+  // プランニング右ペインで締める対象 S1 と持ち越し先 S2 を作る。S1 を選んだ状態で PBI を
+  // 取り込み、配下の未完了タスク（2件）に S1 の sprintId を付ける（B-22）。
+  await page.getByRole('button', { name: 'プランニング' }).click();
+  await page.getByRole('button', { name: 'スプリントを作成' }).click();
+  const s1 = await page.locator('.planning-pane .sprint-select select').inputValue();
+  await page.getByRole('checkbox', { name: pbiTitle }).check();
+  await page.getByRole('button', { name: 'スプリントを作成' }).click();
+  const s2 = await page.locator('.planning-pane .sprint-select select').inputValue();
+  expect(s1).not.toBe(s2);
+
+  // ボードへ移り S1 を選ぶ。planned なので開始（active）してから終了できる（M5 の1周）。
+  await page.goto('/board');
+  await page.locator('.sprint-select select').selectOption(s1);
+  await page.getByRole('button', { name: 'スプリントを開始' }).click();
+
+  // 完了タスクを done にする（このスプリントに凍結され、持ち越されないことを後で確かめる）。
+  await page
+    .getByRole('listitem', { name: doneTitle })
+    .dragTo(page.getByRole('list', { name: '完了' }));
+  await expect(page.getByRole('list', { name: '完了' })).toContainText(doneTitle);
+
+  // スプリントを終了 → 持ち越しプレビュー。未完了だけが並び、完了タスクは出ない（I-5）。
+  await page.getByRole('button', { name: 'スプリントを終了' }).click();
+  const dialog = page.getByRole('dialog', { name: '持ち越しプレビュー' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText(keepTitle)).toBeVisible();
+  await expect(dialog.getByText(doneTitle)).toHaveCount(0);
+
+  // 持ち越し先に S2 を選んで確定する（候補は締める対象・終了済みを除く）。
+  await dialog.locator('.next-select select').selectOption(s2);
+  await dialog.getByRole('button', { name: '確定' }).click();
+
+  // 確定後は持ち越し先 S2 が表示スプリントになる。未完了タスクは S2 の未着手にいて、
+  // 完了タスクは持ち越されていない（S1 に凍結・S2 には現れない — I-5）。
+  await expect(page.getByRole('list', { name: '未着手' })).toContainText(keepTitle);
+  await expect(page.getByRole('listitem', { name: doneTitle })).toHaveCount(0);
 });
