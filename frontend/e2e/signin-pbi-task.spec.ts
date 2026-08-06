@@ -15,16 +15,22 @@ import { expect, test } from '@playwright/test';
 test('サインインして PBI を作り、タスクを1件足せる', async ({ page }) => {
   await page.goto('/backlog');
 
-  // PBI を 1 件作る（B-17）。
+  // PBI を 1 件作る（B-17）。タイトルはこのフロー固有にして、他フローが同じ partition に
+  // 残した PBI と区別できるようにする（E2E は runId 単位で partition を共有する — EX-1/D-22）。
+  const title = 'フロー1の PBI';
   await page.getByRole('button', { name: 'PBI を追加' }).click();
-  await page.getByLabel('タイトル').fill('最初の PBI');
+  await page.getByLabel('タイトル').fill(title);
   await page.getByRole('button', { name: '保存' }).click();
-  await expect(page.getByText('最初の PBI')).toBeVisible();
+  await expect(page.getByText(title)).toBeVisible();
+
+  // 以降の操作はこの PBI の行に**スコープ**する。他フローが残した PBI 行の同名ボタン
+  // （「タスクを追加」など）と衝突させない（strict mode 対策）。
+  const row = page.locator('.pbi-row').filter({ hasText: title });
 
   // その PBI 配下にタスクを 1 件足す（B-20）。
-  await page.getByRole('button', { name: 'タスクを追加' }).click();
-  await page.getByLabel('タスク名').fill('実装する');
+  await row.getByRole('button', { name: 'タスクを追加' }).click();
+  await row.getByLabel('タスク名').fill('実装する');
   // name はデフォルト部分一致で「追加」は「PBI を追加」にもマッチするため exact で絞る。
-  await page.getByRole('button', { name: '追加', exact: true }).click();
-  await expect(page.getByText('実装する')).toBeVisible();
+  await row.getByRole('button', { name: '追加', exact: true }).click();
+  await expect(row.getByText('実装する')).toBeVisible();
 });

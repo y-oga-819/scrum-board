@@ -16,19 +16,23 @@ test('タスク0件の PBI をスプリントに入れると「タスク分解�
 }) => {
   await page.goto('/backlog');
 
-  // タスクを持たない PBI を1件作る（B-17）。
+  // タスクを持たない PBI を1件作る（B-17）。タイトルはこのフロー固有にして、他フローが
+  // 同じ partition に残した PBI と区別する（E2E は runId 単位で partition を共有 — EX-1/D-22）。
+  const title = 'タスク未分解の PBI';
   await page.getByRole('button', { name: 'PBI を追加' }).click();
-  await page.getByLabel('タイトル').fill('タスク未分解の PBI');
+  await page.getByLabel('タイトル').fill(title);
   await page.getByRole('button', { name: '保存' }).click();
-  await expect(page.getByText('タスク未分解の PBI')).toBeVisible();
+  await expect(page.getByText(title)).toBeVisible();
 
   // プランニング右ペインを開き、取り込み先のスプリントを作る（B-21 のスプリント CRUD）。
   await page.getByRole('button', { name: 'プランニング' }).click();
   await page.getByRole('button', { name: 'スプリントを作成' }).click();
 
   // その PBI をスプリントへ取り込む（チェックのアクセシブル名は PBI のタイトル）。
-  await page.getByRole('checkbox', { name: 'タスク未分解の PBI' }).check();
+  await page.getByRole('checkbox', { name: title }).check();
 
   // D-15: どこにも表示されない状態を作らないため、空 PBI には受け皿タスクを1件生成する。
-  await expect(page.getByText('タスク分解')).toBeVisible();
+  // 検証はこの PBI の行にスコープする（他フローが残した「タスク分解」と混同しない）。
+  const row = page.locator('.pbi-row').filter({ hasText: title });
+  await expect(row.getByText('タスク分解')).toBeVisible();
 });
