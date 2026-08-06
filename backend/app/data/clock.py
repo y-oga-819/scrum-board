@@ -10,8 +10,14 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Protocol
+from zoneinfo import ZoneInfo
+
+# 「今日」を数えるタイムゾーン（B-24 の営業日マーカー）。日本チームのスプリントを前提に
+# **Asia/Tokyo 固定**とする（D-25）。``createdAt`` 等の保存は UTC（:func:`isoformat_utc`）の
+# ままで、これは「暦日として今日はいつか」を決めるためだけに使う。
+JST = ZoneInfo("Asia/Tokyo")
 
 
 class Clock(Protocol):
@@ -38,3 +44,15 @@ def isoformat_utc(moment: datetime) -> str:
     if moment.tzinfo is None:
         moment = moment.replace(tzinfo=UTC)
     return moment.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
+def jst_date(moment: datetime) -> date:
+    """``moment``（aware な時刻）を **Asia/Tokyo の暦日**に落とす（B-24・D-25）。
+
+    :class:`SystemClock` は UTC を返すため、そのまま ``.date()`` を取ると日本時間の
+    深夜〜朝（UTC では前日）で「今日」が1日ずれる。営業日マーカーは「日本のチームにとって
+    今日が何日か」で数えるので、JST に変換してから日付にする。naive な時刻は UTC とみなす。
+    """
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=UTC)
+    return moment.astimezone(JST).date()
