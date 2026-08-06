@@ -94,6 +94,15 @@ describe('BoardPage', () => {
     )!;
   }
 
+  /** ラベル一致のボタンを1つ拾う（B-25 のライフサイクル操作用）。 */
+  function button(fixture: ComponentFixture<BoardPage>, label: string): HTMLButtonElement | null {
+    return (
+      (Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('button')).find(
+        (b) => b.textContent?.trim() === label,
+      ) as HTMLButtonElement) ?? null
+    );
+  }
+
   function progress(overrides?: Partial<Board['progress']>): Board['progress'] {
     return {
       planned: { done: 0, total: 0 },
@@ -254,5 +263,93 @@ describe('BoardPage', () => {
     httpMock.expectOne(`${BASE}/sprints/spr_1/board`).flush(board('spr_1', [boardTask('t1', 'カード', 'todo', true)]));
     fixture.detectChanges();
     expect(host.querySelector('.blocked-badge')?.textContent).toContain('ブロック中');
+  });
+
+  // --- スプリントのライフサイクル（開始・終了。B-25） ---------------------------
+
+  it('activates a planned sprint with If-Match, then reloads sprints', () => {
+    // 一覧が planned のみなら「スプリントを開始」を出す（active は「終了」を出す）。
+    const fixture = render([sprint('spr_1', 1, 'planned')], board('spr_1', []));
+    expect(button(fixture, 'スプリントを終了')).toBeNull();
+    const start = button(fixture, 'スプリントを開始');
+    expect(start).not.toBeNull();
+
+    start!.click();
+    const patch = httpMock.expectOne(`${BASE}/sprints/spr_1`);
+    expect(patch.request.method).toBe('PATCH');
+    expect(patch.request.body).toEqual({ status: 'active' });
+    expect(patch.request.headers.get('If-Match')).toBe('"etag-spr_1"');
+    patch.flush(sprint('spr_1', 1, 'active'));
+
+    // 開始後は一覧を読み直して状態と操作ボタンを最新化する。
+    httpMock.expectOne(`${BASE}/sprints`).flush([sprint('spr_1', 1, 'active')]);
+    fixture.detectChanges();
+    httpMock.expectOne(`${BASE}/sprints/spr_1/board`).flush(board('spr_1', []));
+    fixture.detectChanges();
+    expect(button(fixture, 'スプリントを終了')).not.toBeNull();
+  });
+
+  it('opens the carry-over preview listing the incomplete tasks the server returns', () => {
+    const fixture = render(
+      [sprint('spr_1', 1, 'active'), sprint('spr_2', 2, 'planned')],
+      board('spr_1', []),
+    );
+    button(fixture, 'スプリントを終了')!.click();
+
+    const preview = httpMock.expectOne(`${BASE}/sprints/spr_1/close/preview`);
+    expect(preview.request.method).toBe('GET');
+    // 完了タスクは含まれない（サーバーが未完了だけを返す — I-5）。
+    preview.flush({ tasks: [{ id: 't1', title: '未着手のカード', taskType: 'team', status: 'todo' }] });
+    fixture.detectChanges();
+
+    const dialog = (fixture.nativeElement as HTMLElement).querySelector('.close-dialog');
+    expect(dialog).not.toBeNull();
+    expect(dialog!.textContent).toContain('未着手のカード');
+    // 持ち越し先の候補は自分以外・終了済み以外（spr_2 のみ）。
+    const options = dialog!.querySelectorAll('.next-select option');
+    expect(options.length).toBe(1);
+  });
+
+  it('confirms close: posts nextSprintId, switches to the target, and shows a notice', () => {
+    const fixture = render(
+      [sprint('spr_1', 1, 'active'), sprint('spr_2', 2, 'planned')],
+      board('spr_1', []),
+    );
+    button(fixture, 'スプリントを終了')!.click();
+    httpMock.expectOne(`${BASE}/sprints/spr_1/close/preview`).flush({ tasks: [] });
+    fixture.detectChanges();
+
+    button(fixture, '確定')!.click();
+    const post = httpMock.expectOne(`${BASE}/sprints/spr_1/close`);
+    expect(post.request.method).toBe('POST');
+    expect(post.request.body).toEqual({ nextSprintId: 'spr_2' }); // 候補の先頭が既定
+    post.flush({ sprint: sprint('spr_1', 1, 'closed'), carriedOver: 2 });
+
+    // 締めた後は持ち越し先（spr_2）を表示スプリントにして読み直す。
+    httpMock
+      .expectOne(`${BASE}/sprints`)
+      .flush([sprint('spr_1', 1, 'closed'), sprint('spr_2', 2, 'planned')]);
+    fixture.detectChanges();
+    httpMock.expectOne(`${BASE}/sprints/spr_2/board`).flush(board('spr_2', []));
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance['selectedSprintId']()).toBe('spr_2');
+    const notice = (fixture.nativeElement as HTMLElement).querySelector('.notice');
+    expect(notice?.textContent).toContain('2 件を持ち越しました');
+  });
+
+  it('closes cannot proceed with no carry-over target and shows a hint', () => {
+    // 候補が無い（自分だけ／他は closed）なら確定を出さず、次スプリント作成を促す。
+    const fixture = render(
+      [sprint('spr_1', 1, 'active'), sprint('spr_0', 0, 'closed')],
+      board('spr_1', []),
+    );
+    button(fixture, 'スプリントを終了')!.click();
+    httpMock.expectOne(`${BASE}/sprints/spr_1/close/preview`).flush({ tasks: [] });
+    fixture.detectChanges();
+
+    expect(button(fixture, '確定')).toBeNull();
+    const dialog = (fixture.nativeElement as HTMLElement).querySelector('.close-dialog');
+    expect(dialog!.textContent).toContain('持ち越し先のスプリントがありません');
   });
 });

@@ -7,6 +7,7 @@ import { ProductService, ProductSummary } from '../products/product.service';
 import {
   Board,
   BoardTask,
+  CarryOverTask,
   SprintListItem,
   SprintService,
 } from '../products/sprint.service';
@@ -93,9 +94,33 @@ export class BoardPage implements OnInit {
   protected readonly selectedSprintId = signal<string | null>(null);
   /** 表示中スプリントのボード（スプリント情報＋タスク）。 */
   protected readonly board = signal<Board | null>(null);
+  /** 直近の操作の中立な事実（例: 「N 件を持ち越しました」）。警告ではない（P-1）。 */
+  protected readonly notice = signal<string>('');
+
+  /** 終了処理のプレビューを開いているか（持ち越しダイアログの表示制御。B-25）。 */
+  protected readonly closingOpen = signal(false);
+  /** 締めたときに持ち越される未完了タスク（プレビュー。完了は含まない — I-5）。 */
+  protected readonly carryOver = signal<CarryOverTask[]>([]);
+  /** 持ち越し先に選んでいるスプリント id。 */
+  protected readonly nextSprintId = signal<string>('');
 
   protected readonly selectedProduct = this.products.selected;
   protected readonly productId = computed(() => this.selectedProduct()?.productId ?? '');
+
+  /** 表示中スプリントの一覧要素（`_etag` を持つ。状態遷移の `If-Match` に使う）。 */
+  protected readonly currentSprint = computed<SprintListItem | null>(
+    () => this.sprints().find((s) => s.id === this.selectedSprintId()) ?? null,
+  );
+  /** 「スプリントを開始」を出すか（計画中＝ `planned` のときだけ活性化できる）。 */
+  protected readonly canActivate = computed(() => this.currentSprint()?.status === 'planned');
+  /** 「スプリントを終了」を出すか（実行中＝ `active` のときだけ締められる — B-21 の状態機械）。 */
+  protected readonly canClose = computed(() => this.currentSprint()?.status === 'active');
+  /** 持ち越し先の候補（締める対象・終了済みを除く。無ければ先に次スプリントを作る必要がある）。 */
+  protected readonly closeTargets = computed(() =>
+    this.sprints().filter(
+      (s) => s.id !== this.selectedSprintId() && s.status !== 'closed',
+    ),
+  );
 
   /**
    * 進捗の2本バー＋営業日マーカーの描画モデル（提案書 05章・B-24）。
@@ -213,12 +238,102 @@ export class BoardPage implements OnInit {
     });
   }
 
-  /** セレクタで表示スプリントを切り替える。 */
+  /** セレクタで表示スプリントを切り替える。開いていた終了プレビューは閉じる。 */
   protected selectSprint(event: Event): void {
     const sprintId = (event.target as HTMLSelectElement).value;
     this.selectedSprintId.set(sprintId);
     this.errorMessage.set('');
+    this.notice.set('');
+    this.cancelClose();
     this.loadBoard(this.productId(), sprintId);
+  }
+
+  // --- スプリントのライフサイクル（開始・終了。B-25） ------------------------
+
+  /**
+   * スプリントを開始する（`planned → active`）。M5 の「1 周回る」を締めまで進めるための入口。
+   *
+   * `If-Match` には一覧要素の `_etag` を渡す（版がずれれば 412 → 引き直して再操作を促す — D-24）。
+   * 成功後は一覧を読み直し、状態（active）と操作ボタン（終了）を最新化する。
+   */
+  protected activateSprint(): void {
+    const sprint = this.currentSprint();
+    if (sprint === null) {
+      return;
+    }
+    this.errorMessage.set('');
+    this.notice.set('');
+    this.sprintApi
+      .update(this.productId(), sprint.id, sprint._etag, { status: 'active' })
+      .subscribe({
+        next: () => this.loadSprints(this.productId()),
+        error: (err) => {
+          this.reportProblem(err, 'スプリントを開始できませんでした。');
+          this.loadSprints(this.productId());
+        },
+      });
+  }
+
+  /**
+   * 終了処理のプレビューを開く（`GET .../close/preview`。B-25・D-20）。
+   *
+   * 締めたときに次スプリントへ持ち越される**未完了タスク**を先に見せる（完了は含まない — I-5）。
+   * 強制も警告もせず事実だけを見せてから確定に進む（P-1）。持ち越し先は候補の先頭を既定にする。
+   */
+  protected openClose(): void {
+    const sprint = this.currentSprint();
+    if (sprint === null) {
+      return;
+    }
+    this.errorMessage.set('');
+    this.notice.set('');
+    this.nextSprintId.set(this.closeTargets()[0]?.id ?? '');
+    this.sprintApi.closePreview(this.productId(), sprint.id).subscribe({
+      next: (preview) => {
+        this.carryOver.set(preview.tasks);
+        this.closingOpen.set(true);
+      },
+      error: (err) => this.reportProblem(err, '持ち越しプレビューを取得できませんでした。'),
+    });
+  }
+
+  /** 終了プレビューを閉じる（確定しない）。 */
+  protected cancelClose(): void {
+    this.closingOpen.set(false);
+    this.carryOver.set([]);
+  }
+
+  /** 持ち越し先スプリントを選ぶ。 */
+  protected selectNextSprint(event: Event): void {
+    this.nextSprintId.set((event.target as HTMLSelectElement).value);
+  }
+
+  /**
+   * スプリント終了を確定する（`POST .../close`。B-25）。
+   *
+   * 未完了タスクを `nextSprintId` へ移し、スプリントを `closed` にする（完了タスクは動かさない
+   * — I-5。規則はサーバーに閉じる）。確定後は**持ち越し先を表示スプリントにして**、移った未完了
+   * タスクをそのまま確認できるようにし、一覧を読み直してサーバーの状態を正とする。
+   */
+  protected confirmClose(): void {
+    const sprint = this.currentSprint();
+    const next = this.nextSprintId();
+    if (sprint === null || next === '') {
+      return;
+    }
+    this.errorMessage.set('');
+    this.sprintApi.close(this.productId(), sprint.id, next).subscribe({
+      next: (result) => {
+        this.cancelClose();
+        this.selectedSprintId.set(next);
+        this.notice.set(`スプリントを終了しました（${result.carriedOver} 件を持ち越しました）。`);
+        this.loadSprints(this.productId());
+      },
+      error: (err) => {
+        this.reportProblem(err, 'スプリントを終了できませんでした。');
+        this.loadSprints(this.productId());
+      },
+    });
   }
 
   // --- ドラッグでの状態移動（ネイティブ HTML5 DnD） ---------------------------

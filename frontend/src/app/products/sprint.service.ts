@@ -23,12 +23,20 @@ export type Sprint = components['schemas']['Sprint'];
 export type SprintListItem = components['schemas']['SprintListItem'];
 /** スプリント作成の入力（ゴール・期間は任意）。 */
 export type SprintCreate = components['schemas']['SprintCreate'];
+/** スプリント更新の入力（部分更新。状態遷移・期間・ゴール）。 */
+export type SprintUpdate = components['schemas']['SprintUpdate'];
 /** スプリントの状態（`planned` / `active` / `closed`）。 */
 export type SprintStatus = components['schemas']['SprintStatus'];
 /** スプリント画面のボード集約（スプリント情報＋タスク。B-23）。 */
 export type Board = components['schemas']['BoardResponse'];
 /** ボードに並ぶタスク（単一 Task に `_etag` を足したもの）。 */
 export type BoardTask = components['schemas']['BoardTask'];
+/** スプリント終了で持ち越されるタスクのプレビュー行（B-25）。 */
+export type CarryOverTask = components['schemas']['CarryOverTask'];
+/** スプリント終了の持ち越しプレビュー（未完了タスク一覧。B-25）。 */
+export type ClosePreview = components['schemas']['ClosePreview'];
+/** スプリント終了の結果（締めたスプリント＋持ち越した件数。B-25）。 */
+export type CloseResult = components['schemas']['CloseResult'];
 
 @Injectable({ providedIn: 'root' })
 export class SprintService {
@@ -46,6 +54,26 @@ export class SprintService {
   /** スプリントを 1 件作成する。番号はサーバーが採番し、状態は必ず `planned` から始まる。 */
   create(productId: string, body: SprintCreate): Observable<Sprint> {
     return this.http.post<Sprint>(this.base(productId), body);
+  }
+
+  /**
+   * スプリントを部分更新する（`PATCH .../{sprintId}`。B-21）。
+   *
+   * 状態遷移（`planned → active → closed`）・期間・ゴールを動かす。ボードでは
+   * 「スプリントを開始」（`status='active'`）に使う。`If-Match` には一覧要素の `_etag` を
+   * 渡す（版がずれれば 412 → 画面を引き直して再操作を促す — D-24）。
+   */
+  update(
+    productId: string,
+    sprintId: string,
+    etag: string,
+    body: SprintUpdate,
+  ): Observable<Sprint> {
+    return this.http.patch<Sprint>(
+      `${this.base(productId)}/${encodeURIComponent(sprintId)}`,
+      body,
+      { headers: { 'If-Match': etag } },
+    );
   }
 
   /**
@@ -88,5 +116,31 @@ export class SprintService {
       `${this.base(productId)}/${encodeURIComponent(sprintId)}` +
       `/pbis/${encodeURIComponent(pbiId)}`
     );
+  }
+
+  /**
+   * スプリント終了で**持ち越される一覧**をプレビューする（`GET .../{sid}/close/preview`。B-25）。
+   *
+   * 締めたときに次スプリントへ移る未完了タスクを返す（読み取りのみ・状態は変えない）。
+   * 完了タスクは含まれない（I-5）。「スプリントを終了」を押した時点でこれを見せ、確定は別手
+   * （{@link close}）に分ける（D-20。強制も警告もせず事実だけ見せる — P-1）。
+   */
+  closePreview(productId: string, sprintId: string): Observable<ClosePreview> {
+    return this.http.get<ClosePreview>(this.closeUrl(productId, sprintId) + '/preview');
+  }
+
+  /**
+   * スプリントを終了する（`POST .../{sid}/close`。B-25）。
+   *
+   * 未完了タスクを `nextSprintId` へ移し、スプリントを `closed` にする。**完了タスクは
+   * 動かさない**（I-5。規則はサーバーに閉じる）。複数タスクを束ねるサーバー所有の操作のため
+   * `If-Match` は取らない。応答は締めたスプリントと持ち越した件数。
+   */
+  close(productId: string, sprintId: string, nextSprintId: string): Observable<CloseResult> {
+    return this.http.post<CloseResult>(this.closeUrl(productId, sprintId), { nextSprintId });
+  }
+
+  private closeUrl(productId: string, sprintId: string): string {
+    return `${this.base(productId)}/${encodeURIComponent(sprintId)}/close`;
   }
 }
