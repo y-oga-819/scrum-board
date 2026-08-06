@@ -9,6 +9,7 @@ import {
   PbiStatus,
 } from '../products/pbi.service';
 import { ProductService, ProductSummary } from '../products/product.service';
+import { SprintListItem, SprintService } from '../products/sprint.service';
 import { TaskService } from '../products/task.service';
 
 /** `GET /api/me` の応答のうち、この画面が必要とする所属一覧だけ（B-10・D-21）。 */
@@ -46,6 +47,7 @@ export class BacklogPage implements OnInit {
   private readonly http = inject(HttpClient);
   private readonly pbiApi = inject(PbiService);
   private readonly taskApi = inject(TaskService);
+  private readonly sprintApi = inject(SprintService);
   private readonly products = inject(ProductService);
 
   protected readonly statuses = STATUS_LABELS;
@@ -79,6 +81,20 @@ export class BacklogPage implements OnInit {
   protected readonly titleById = computed(
     () => new Map(this.pbis().map((pbi) => [pbi.id, pbi.title])),
   );
+
+  // --- プランニング（右ペイン。B-22） ---------------------------------------
+  //
+  // プランニングは「どの PBI を今スプリントで回すか」を決める。PBI 自身はスプリントへの参照
+  // を持たず（D-08）、「今スプリントにいる」は配下タスクの sprintId から**導出**する。だから
+  // チェックの状態は保持せず isInSprint() で毎回導出し、二重の真実を作らない。取り込み／外す
+  // の規則（未完了だけ動かす・タスク0件なら「タスク分解」生成）はサーバーに閉じる（D-15/D-20）。
+
+  /** プランニング右ペインの開閉。開いたときにだけスプリントを読む（既存の初期表示を変えない）。 */
+  protected readonly planningMode = signal(false);
+  /** スプリント一覧（番号順。セレクタ用。開いたときに読む）。 */
+  protected readonly sprints = signal<SprintListItem[]>([]);
+  /** 取り込み先に選んでいるスプリントの id（無ければ null）。 */
+  protected readonly selectedSprintId = signal<string | null>(null);
 
   /** ドラッグ中の PBI id（ドロップ先の計算に使う）。 */
   private draggingId: string | null = null;
@@ -216,6 +232,93 @@ export class BacklogPage implements OnInit {
   /** 分割元の表示名（一覧に無ければ空文字＝辿れないことを示す）。 */
   protected parentTitle(parentPbiId: string): string {
     return this.titleById().get(parentPbiId) ?? '';
+  }
+
+  // --- プランニング（右ペイン。B-22） ---------------------------------------
+
+  /** プランニング右ペインを開閉する。開くときにスプリント一覧を（正から）読み直す。 */
+  protected togglePlanning(): void {
+    const next = !this.planningMode();
+    this.planningMode.set(next);
+    if (next) {
+      this.loadSprints(this.productId());
+    }
+  }
+
+  /** スプリント一覧を読み、選択が未設定／消失していれば先頭（番号順の最初）に寄せる。 */
+  private loadSprints(productId: string): void {
+    if (productId === '') {
+      return;
+    }
+    this.sprintApi.list(productId).subscribe({
+      next: (sprints) => {
+        this.sprints.set(sprints);
+        const current = this.selectedSprintId();
+        if (current === null || !sprints.some((s) => s.id === current)) {
+          this.selectedSprintId.set(sprints[0]?.id ?? null);
+        }
+      },
+      error: () => this.errorMessage.set('スプリントを読み込めませんでした。'),
+    });
+  }
+
+  /** セレクタで取り込み先スプリントを選ぶ。 */
+  protected selectSprint(event: Event): void {
+    this.selectedSprintId.set((event.target as HTMLSelectElement).value || null);
+  }
+
+  /** スプリントを1件作る（ゴール・期間は後から編集。番号と状態はサーバーが決める）。 */
+  protected createSprint(): void {
+    const productId = this.productId();
+    if (productId === '') {
+      return;
+    }
+    this.errorMessage.set('');
+    this.sprintApi.create(productId, { goal: '' }).subscribe({
+      next: (sprint) => {
+        this.selectedSprintId.set(sprint.id);
+        this.loadSprints(productId);
+      },
+      error: (err) => this.reportProblem(err, 'スプリントの作成に失敗しました。'),
+    });
+  }
+
+  /**
+   * PBI が選択中スプリントにいるか（**導出**。配下タスクに sprintId=選択中 が1つでもあるか）。
+   * 状態を別に保持せず毎回導出することで、サーバーとフロントに2つの真実を作らない（D-08）。
+   */
+  protected isInSprint(pbi: BacklogPbi): boolean {
+    const sid = this.selectedSprintId();
+    return sid !== null && pbi.tasks.some((task) => task.sprintId === sid);
+  }
+
+  /**
+   * チェックで PBI を取り込む／外す（サーバーの専用エンドポイント。規則はサーバーに閉じる）。
+   * 取り込むと配下の未完了タスクに sprintId が付き、タスク0件なら「タスク分解」が生成される
+   * （D-15）。外すと未完了タスクのみ戻る（完了タスクは動かさない — I-5）。操作後は集約 GET を
+   * 引き直し、サーバーが確定した状態を正とする。
+   */
+  protected togglePbi(pbi: BacklogPbi, event: Event): void {
+    const sid = this.selectedSprintId();
+    const productId = this.productId();
+    if (sid === null || productId === '') {
+      return;
+    }
+    const checked = (event.target as HTMLInputElement).checked;
+    this.errorMessage.set('');
+    const op = checked
+      ? this.sprintApi.includePbi(productId, sid, pbi.id)
+      : this.sprintApi.excludePbi(productId, sid, pbi.id);
+    op.subscribe({
+      next: () => this.load(productId),
+      error: (err) => {
+        this.reportProblem(
+          err,
+          checked ? 'スプリントに入れられませんでした。' : 'スプリントから外せませんでした。',
+        );
+        this.load(productId);
+      },
+    });
   }
 
   /** ステータスを変更する。遷移の正当性はサーバーが判定し、不正なら 422 を表示する。 */

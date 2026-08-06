@@ -317,4 +317,106 @@ describe('BacklogPage', () => {
     const fixture = render([pbi('pbi_a', 'A', '0|a:')]);
     expect(rows(fixture)[0].querySelector('.parent-link')).toBeNull();
   });
+
+  // --- プランニング（B-22） --------------------------------------------------
+
+  /** プランニングを開き、GET /sprints に与えたスプリント一覧を返す。 */
+  function openPlanning(
+    fixture: ComponentFixture<BacklogPage>,
+    sprints: { id: string; number: number; status: string }[],
+  ): void {
+    const host = fixture.nativeElement as HTMLElement;
+    host.querySelector<HTMLButtonElement>('.planning-toggle')!.click();
+    fixture.detectChanges();
+    httpMock.expectOne(`${BASE}/sprints`).flush(sprints);
+    fixture.detectChanges();
+  }
+
+  it('does not fetch sprints until planning mode is opened', () => {
+    render([pbi('pbi_a', 'A', '0|a:')]);
+    // 初期表示では /backlog だけ。/sprints は開くまで呼ばない（httpMock.verify が保証）。
+  });
+
+  it('opens the planning pane and loads sprints, selecting the first', () => {
+    const fixture = render([pbi('pbi_a', 'A', '0|a:')]);
+    openPlanning(fixture, [{ id: 'spr_1', number: 1, status: 'planned' }]);
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.querySelector('.planning-pane')).not.toBeNull();
+    // 選択中スプリントがあるので各行にチェックボックスが出る。
+    expect(host.querySelector('.pbi-row .plan-check')).not.toBeNull();
+  });
+
+  it('creates a sprint when none exist and reloads the list', () => {
+    const fixture = render([pbi('pbi_a', 'A', '0|a:')]);
+    openPlanning(fixture, []);
+    const host = fixture.nativeElement as HTMLElement;
+    // スプリントが無いのでチェックボックスは出ない（取り込み先が無い）。
+    expect(host.querySelector('.plan-check')).toBeNull();
+
+    host.querySelector<HTMLButtonElement>('.create-sprint')!.click();
+    const create = httpMock.expectOne(`${BASE}/sprints`);
+    expect(create.request.method).toBe('POST');
+    create.flush({ id: 'spr_1', number: 1, status: 'planned' });
+
+    // 作成後は一覧を読み直す。作成したスプリントが選択される。
+    httpMock.expectOne(`${BASE}/sprints`).flush([{ id: 'spr_1', number: 1, status: 'planned' }]);
+    fixture.detectChanges();
+    expect(host.querySelector('.pbi-row .plan-check')).not.toBeNull();
+  });
+
+  it('includes a PBI into the sprint when checked, then reloads the backlog', () => {
+    const fixture = render([pbi('pbi_a', 'タスク未分解の PBI', '0|a:')]);
+    openPlanning(fixture, [{ id: 'spr_1', number: 1, status: 'planned' }]);
+    const host = fixture.nativeElement as HTMLElement;
+
+    const checkbox = host.querySelector<HTMLInputElement>('.pbi-row .plan-check')!;
+    expect(checkbox.checked).toBe(false); // 配下タスクが無いので未チェック（導出）。
+    checkbox.checked = true;
+    checkbox.dispatchEvent(new Event('change'));
+
+    const include = httpMock.expectOne(`${BASE}/sprints/spr_1/pbis/pbi_a`);
+    expect(include.request.method).toBe('POST');
+    expect(include.request.headers.has('If-Match')).toBe(false);
+    include.flush(null);
+
+    // 取り込み後は集約 GET を引き直す。D-15 の「タスク分解」がサーバーから返る。
+    httpMock
+      .expectOne(`${BASE}/backlog`)
+      .flush({ pbis: [pbi('pbi_a', 'タスク未分解の PBI', '0|a:', [decompositionTask('spr_1')])] });
+    fixture.detectChanges();
+    expect(host.querySelector('.task-title')?.textContent).toContain('タスク分解');
+  });
+
+  it('derives the checked state from a task belonging to the selected sprint', () => {
+    const inSprint = { ...task('tsk_1', '実装', 'pbi_a'), sprintId: 'spr_1' };
+    const fixture = render([pbi('pbi_a', 'A', '0|a:', [inSprint])]);
+    openPlanning(fixture, [{ id: 'spr_1', number: 1, status: 'planned' }]);
+    const checkbox = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>(
+      '.pbi-row .plan-check',
+    )!;
+    expect(checkbox.checked).toBe(true);
+  });
+
+  it('excludes a PBI from the sprint when unchecked', () => {
+    const inSprint = { ...task('tsk_1', '実装', 'pbi_a'), sprintId: 'spr_1' };
+    const fixture = render([pbi('pbi_a', 'A', '0|a:', [inSprint])]);
+    openPlanning(fixture, [{ id: 'spr_1', number: 1, status: 'planned' }]);
+    const host = fixture.nativeElement as HTMLElement;
+
+    const checkbox = host.querySelector<HTMLInputElement>('.pbi-row .plan-check')!;
+    expect(checkbox.checked).toBe(true);
+    checkbox.checked = false;
+    checkbox.dispatchEvent(new Event('change'));
+
+    const exclude = httpMock.expectOne(`${BASE}/sprints/spr_1/pbis/pbi_a`);
+    expect(exclude.request.method).toBe('DELETE');
+    exclude.flush(null);
+
+    httpMock.expectOne(`${BASE}/backlog`).flush({ pbis: [pbi('pbi_a', 'A', '0|a:')] });
+  });
 });
+
+/** スプリントに入った「タスク分解」タスク（D-15）のダミー。 */
+function decompositionTask(sprintId: string): BacklogTask {
+  return { ...task('tsk_dec', 'タスク分解', 'pbi_a'), sprintId };
+}
