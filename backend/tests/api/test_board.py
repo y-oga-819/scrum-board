@@ -91,9 +91,7 @@ def _seed_task(repo: InMemoryRepository, *, title: str, sprint_id: str | None) -
     """
     data = new_task_data(task_type=TaskType.TEAM, title=title)
     data["sprintId"] = sprint_id
-    return repo.create(
-        product_id=PRODUCT, doc_type=DocumentType.TASK, data=data, actor=MEMBER_OID
-    )
+    return repo.create(product_id=PRODUCT, doc_type=DocumentType.TASK, data=data, actor=MEMBER_OID)
 
 
 def _board_url(sprint_id: str) -> str:
@@ -127,9 +125,7 @@ def test_board_returns_only_this_sprints_tasks(
     assert ids == [mine["id"]]
 
 
-def test_board_tasks_carry_etag_for_if_match(
-    client: TestClient, repo: InMemoryRepository
-) -> None:
+def test_board_tasks_carry_etag_for_if_match(client: TestClient, repo: InMemoryRepository) -> None:
     # 集約 GET は各タスクの _etag を本文で返す（ボード操作の If-Match に使う — D-20）。
     sprint = _create_sprint(client)
     task = _seed_task(repo, title="動かす", sprint_id=sprint["id"])
@@ -147,9 +143,7 @@ def test_board_tasks_carry_etag_for_if_match(
     assert patched.status_code == 200
 
 
-def test_board_excludes_soft_deleted_tasks(
-    client: TestClient, repo: InMemoryRepository
-) -> None:
+def test_board_excludes_soft_deleted_tasks(client: TestClient, repo: InMemoryRepository) -> None:
     sprint = _create_sprint(client)
     keep = _seed_task(repo, title="残す", sprint_id=sprint["id"])
     drop = _seed_task(repo, title="消す", sprint_id=sprint["id"])
