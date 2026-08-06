@@ -1,0 +1,174 @@
+:host {
+  display: block;
+  min-height: 100vh;
+}
+
+.board {
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 3rem;
+}
+
+.board-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+
+  h1 {
+    margin: 0;
+    font-size: 1.6rem;
+    letter-spacing: -0.01em;
+  }
+
+  .product {
+    margin: 0.25rem 0 0;
+    color: #6b7079;
+    font-size: 0.9rem;
+  }
+}
+
+.home-link {
+  flex: none;
+  color: #4a4f57;
+  font-size: 0.9rem;
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.error {
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.9rem;
+  color: #8a1c1c;
+  background: #fdecea;
+  border: 1px solid #f4b8b0;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.hint {
+  color: #6b7079;
+  font-size: 0.9rem;
+  line-height: 1.7;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+}
+
+.sprint-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: #4a4f57;
+
+  select {
+    padding: 0.35rem 0.5rem;
+    font: inherit;
+    border: 1px solid #cfd4da;
+    border-radius: 6px;
+    background: #fff;
+  }
+}
+
+.goal {
+  margin: 0;
+  color: #6b7079;
+  font-size: 0.9rem;
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+
+  @media (max-width: 40rem) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+
+  h2 {
+    margin: 0 0 0.5rem;
+    font-size: 1rem;
+    color: #4a4f57;
+  }
+}
+
+.column-drop {
+  list-style: none;
+  margin: 0;
+  padding: 0.5rem;
+  min-height: 8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  background: #f4f5f7;
+  border: 1px solid #e3e6ea;
+  border-radius: 8px;
+}
+
+.task-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  background: #fff;
+  border: 1px solid #dfe3e8;
+  border-radius: 6px;
+  cursor: grab;
+
+  &:active {
+    cursor: grabbing;
+  }
+
+  // ブロックは「事実」の可視化。警告色ではなく種別の区別に留める（P-1 / D-13）。
+  &.blocked {
+    border-left: 3px solid #6b7079;
+  }
+
+  .task-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 0.9rem;
+  }
+
+  .blocked-badge {
+    flex: none;
+    font-size: 0.75rem;
+    color: #4a4f57;
+    background: #eceef1;
+    padding: 0.1rem 0.4rem;
+    border-radius: 999px;
+  }
+
+  .block-toggle {
+    flex: none;
+    font: inherit;
+    font-size: 0.75rem;
+    color: #4a4f57;
+    background: transparent;
+    border: 1px solid #cfd4da;
+    border-radius: 6px;
+    padding: 0.2rem 0.5rem;
+    cursor: pointer;
+
+    &:hover {
+      background: #eceef1;
+    }
+  }
+}
