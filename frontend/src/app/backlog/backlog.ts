@@ -1,8 +1,8 @@
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
-import { isProblem } from '../api/problem';
+import { messageForError } from '../api/errors';
 import {
   BacklogPbi,
   PbiService,
@@ -397,9 +397,12 @@ export class BacklogPage implements OnInit {
     this.state.set('error');
   }
 
-  /** HTTP エラー本文が problem+json なら detail を、そうでなければ既定文を表示する。 */
+  /**
+   * HTTP エラーを表示メッセージに整形する（共通処理 — D-24）。412（版ずれ）は「最新に更新した・
+   * 必要なら再操作」を示し、それ以外は problem+json の detail か既定文を出す。呼び出し側は
+   * この直後に集約 GET を引き直し、サーバーの状態を正とする（黙って上書きしない）。
+   */
   private reportProblem(err: unknown, fallback: string): void {
-    const body = err instanceof HttpErrorResponse ? err.error : err;
-    this.errorMessage.set(isProblem(body) && body.detail ? body.detail : fallback);
+    this.errorMessage.set(messageForError(err, fallback));
   }
 }
