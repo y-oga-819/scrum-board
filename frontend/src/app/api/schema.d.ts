@@ -234,6 +234,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/products/{product_id}/sprints/{sprint_id}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Close
+         * @description スプリントを締める。未完了タスクを ``nextSprintId`` へ移し、状態を ``closed`` にする。
+         */
+        post: operations["close_api_products__product_id__sprints__sprint_id__close_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/products/{product_id}/sprints/{sprint_id}/close/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Preview
+         * @description 締めたときに持ち越される一覧（未完了タスク）を返す。読み取りのみ（P-1）。
+         */
+        get: operations["preview_api_products__product_id__sprints__sprint_id__close_preview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/products/{product_id}/sprints/{sprint_id}/pbis/{pbi_id}": {
         parameters: {
             query?: never;
@@ -518,6 +558,51 @@ export interface components {
             updatedAt: string;
             /** Updatedby */
             updatedBy: string;
+        };
+        /**
+         * CarryOverTask
+         * @description 持ち越しプレビューの1行。人が「何が次へ移るか」を読める最小限に絞る。
+         *
+         *     プレビューは事実を見せるだけ（P-1）なので版（``_etag``）は載せない——確定
+         *     （``POST .../close``）は ``If-Match`` を取らないサーバー所有の操作で、クライアントが
+         *     個々のタスクの版を運ぶ必要がないため（ボードの :class:`BoardTask` とは非対称）。
+         */
+        CarryOverTask: {
+            /** Id */
+            id: string;
+            /** Status */
+            status: string;
+            taskType: components["schemas"]["TaskType"];
+            /** Title */
+            title: string;
+        };
+        /**
+         * ClosePreview
+         * @description 締めたときに持ち越される一覧（このスプリントの未完了タスク）。完了タスクは含めない（I-5）。
+         */
+        ClosePreview: {
+            /** Tasks */
+            tasks: components["schemas"]["CarryOverTask"][];
+        };
+        /**
+         * CloseRequest
+         * @description スプリント終了の確定入力。未完了タスクの**移動先スプリント**を指定する。
+         *
+         *     ``nextSprintId`` は既存の別スプリント（``planned`` or ``active``）を指す。フロントは
+         *     「次スプリント」を先に作ってからその id を渡す（提案書 07章 ``sprintId = <nextSprintId>``）。
+         */
+        CloseRequest: {
+            /** Nextsprintid */
+            nextSprintId: string;
+        };
+        /**
+         * CloseResult
+         * @description スプリント終了の結果。締めたスプリントと**持ち越した件数**を返す（事実の提示 — P-1）。
+         */
+        CloseResult: {
+            /** Carriedover */
+            carriedOver: number;
+            sprint: components["schemas"]["Sprint"];
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -1931,6 +2016,146 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BoardResponse"];
+                };
+            };
+            /** @description Problem */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Problem */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    close_api_products__product_id__sprints__sprint_id__close_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sprint_id: string;
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CloseRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CloseResult"];
+                };
+            };
+            /** @description Problem */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    preview_api_products__product_id__sprints__sprint_id__close_preview_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sprint_id: string;
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClosePreview"];
                 };
             };
             /** @description Problem */
