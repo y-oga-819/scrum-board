@@ -26,25 +26,68 @@
       <p class="hint">再読み込みしてください。</p>
     }
     @case ('ready') {
-      <section class="add">
-        @if (showAddForm()) {
-          <form class="add-form" (submit)="submitAdd(); $event.preventDefault()">
-            <label for="pbi-title">タイトル</label>
-            <input
-              #titleInput
-              id="pbi-title"
-              autocomplete="off"
-              (input)="newTitle = titleInput.value"
-            />
-            <div class="add-actions">
-              <button type="submit" class="primary">保存</button>
-              <button type="button" (click)="cancelAdd()">キャンセル</button>
-            </div>
-          </form>
-        } @else {
-          <button type="button" class="primary" (click)="openAddForm()">PBI を追加</button>
-        }
-      </section>
+      <div class="toolbar">
+        <section class="add">
+          @if (showAddForm()) {
+            <form class="add-form" (submit)="submitAdd(); $event.preventDefault()">
+              <label for="pbi-title">タイトル</label>
+              <input
+                #titleInput
+                id="pbi-title"
+                autocomplete="off"
+                (input)="newTitle = titleInput.value"
+              />
+              <div class="add-actions">
+                <button type="submit" class="primary">保存</button>
+                <button type="button" (click)="cancelAdd()">キャンセル</button>
+              </div>
+            </form>
+          } @else {
+            <button type="button" class="primary" (click)="openAddForm()">PBI を追加</button>
+          }
+        </section>
+        <button
+          type="button"
+          class="planning-toggle"
+          [class.active]="planningMode()"
+          [attr.aria-pressed]="planningMode()"
+          (click)="togglePlanning()"
+        >
+          プランニング
+        </button>
+      </div>
+
+      <!-- プランニング右ペイン（B-22）。取り込み先スプリントを選び、PBI をチェックで入れる。 -->
+      @if (planningMode()) {
+        <section class="planning-pane" aria-label="プランニング">
+          <h2>プランニング</h2>
+          @if (sprints().length === 0) {
+            <p class="hint">
+              スプリントがありません。「スプリントを作成」から作ってください。
+            </p>
+          } @else {
+            <label class="sprint-select">
+              <span>取り込み先スプリント</span>
+              <select (change)="selectSprint($event)">
+                @for (sprint of sprints(); track sprint.id) {
+                  <option [value]="sprint.id" [selected]="sprint.id === selectedSprintId()">
+                    スプリント {{ sprint.number }}（{{ sprint.status }}）
+                  </option>
+                }
+              </select>
+            </label>
+          }
+          <button type="button" class="create-sprint" (click)="createSprint()">
+            スプリントを作成
+          </button>
+          @if (selectedSprintId()) {
+            <p class="hint">
+              PBI のチェックで配下の未完了タスクをこのスプリントに入れます（タスク0件の PBI は
+              「タスク分解」タスクが1件作られます）。
+            </p>
+          }
+        </section>
+      }
 
       @if (pbis().length === 0) {
         <p class="hint empty">まだ PBI がありません。「PBI を追加」から作成してください。</p>
@@ -61,6 +104,18 @@
             >
               <div class="pbi-main">
                 <span class="handle" aria-hidden="true">⠿</span>
+                <!-- プランニング（B-22）: チェックで選択中スプリントへ取り込む／外す。
+                     チェック状態は配下タスクの sprintId から導出する（保持しない — D-08）。 -->
+                @if (planningMode() && selectedSprintId()) {
+                  <input
+                    type="checkbox"
+                    class="plan-check"
+                    draggable="false"
+                    [attr.aria-label]="pbi.title"
+                    [checked]="isInSprint(pbi)"
+                    (change)="togglePbi(pbi, $event)"
+                  />
+                }
                 <span class="title">{{ pbi.title }}</span>
                 <!-- 分割元（B-19）。子 → 親の一方向参照を一覧から辿れるようにする。 -->
                 @if (pbi.parentPbiId) {
