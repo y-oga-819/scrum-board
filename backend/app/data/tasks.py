@@ -214,3 +214,19 @@ def list_tasks(repo: Repository, product_id: str) -> list[Document]:
     ULID）で整列する。
     """
     return repo.query(product_id=product_id, doc_type=DocumentType.TASK)
+
+
+def list_sprint_tasks(repo: Repository, product_id: str, sprint_id: str) -> list[Document]:
+    """あるスプリントに属するタスクを ``rank, id`` 順で返す（論理削除済みは除外）。
+
+    スプリント画面のボード集約（:mod:`app.api.board`）が、``todo`` / ``doing`` / ``done`` の
+    3 カラムに振り分けるための土台。``sprintId`` が一致するタスク（pbi・team を問わない）を
+    パーティションから 1 回のクエリで引き、``PBI ごとに引き直す`` ような N+1 を作らない
+    （読み取りは画面単位 — D-20）。カラムへの振り分け（``status`` での束ね）は導出であり
+    不変条件ではないため、フロントが行う（サーバーは並びだけ保証する）。
+    """
+    return repo.query(
+        product_id=product_id,
+        doc_type=DocumentType.TASK,
+        equals={"sprintId": sprint_id},
+    )

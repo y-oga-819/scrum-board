@@ -8,6 +8,7 @@
 * :mod:`.sprints` — スプリントの CRUD（``/api/products/{pid}/sprints``。B-21）
 * :mod:`.planning` — プランニング（``/sprints/{sid}/pbis/{pbiId}`` 取り込み／外す。B-22）
 * :mod:`.backlog` — プロダクトバックログ画面の集約 GET（``/backlog``。B-17）
+* :mod:`.board` — スプリント画面のボードの集約 GET（``/sprints/{sid}/board``。B-23）
 
 各モジュールは自分の :class:`~fastapi.APIRouter` を公開し、ここで 1 つの
 ``routers`` に束ねる。:mod:`app.main` はこれを順に ``include_router`` するだけでよい。
@@ -21,10 +22,10 @@ from collections.abc import Sequence
 
 from fastapi import APIRouter
 
-from . import backlog, meta, pbis, planning, sprints, tasks
+from . import backlog, board, meta, pbis, planning, sprints, tasks
 
 # main.py が順に include するルータ群。meta（横断）→ リソース別 → ドメイン操作 → 画面集約の
-# 順に並べる。画面集約（board…）は各 PBI で足す。
+# 順に並べる。
 routers: Sequence[APIRouter] = (
     meta.router,
     pbis.router,
@@ -32,6 +33,7 @@ routers: Sequence[APIRouter] = (
     sprints.router,
     planning.router,
     backlog.router,
+    board.router,
 )
 
 __all__ = ["routers"]

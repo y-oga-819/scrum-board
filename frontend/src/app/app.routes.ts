@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { MsalGuard } from '@azure/msal-angular';
 import { BacklogPage } from './backlog/backlog';
+import { BoardPage } from './board/board';
 import { HomePage } from './home/home';
 import { PbiDetailPage } from './pbi-detail/pbi-detail';
 import { environment } from '../environments/environment';
@@ -19,4 +20,6 @@ export const routes: Routes = [
   { path: 'backlog', component: BacklogPage, canActivate: authGuard },
   // PBI 詳細（B-18）。画面Aからのドリルダウンで、新しいモードではない（2画面原則を維持）。
   { path: 'backlog/:pbiId', component: PbiDetailPage, canActivate: authGuard },
+  // スプリント画面のボード（画面B。B-23）。2画面構成の2枚目（D-21）。
+  { path: 'board', component: BoardPage, canActivate: authGuard },
 ];

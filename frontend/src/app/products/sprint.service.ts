@@ -25,6 +25,10 @@ export type SprintListItem = components['schemas']['SprintListItem'];
 export type SprintCreate = components['schemas']['SprintCreate'];
 /** スプリントの状態（`planned` / `active` / `closed`）。 */
 export type SprintStatus = components['schemas']['SprintStatus'];
+/** スプリント画面のボード集約（スプリント情報＋タスク。B-23）。 */
+export type Board = components['schemas']['BoardResponse'];
+/** ボードに並ぶタスク（単一 Task に `_etag` を足したもの）。 */
+export type BoardTask = components['schemas']['BoardTask'];
 
 @Injectable({ providedIn: 'root' })
 export class SprintService {
@@ -42,6 +46,20 @@ export class SprintService {
   /** スプリントを 1 件作成する。番号はサーバーが採番し、状態は必ず `planned` から始まる。 */
   create(productId: string, body: SprintCreate): Observable<Sprint> {
     return this.http.post<Sprint>(this.base(productId), body);
+  }
+
+  /**
+   * スプリント画面のボードを**1 往復**で読む（`GET .../{sprintId}/board`。B-23・D-20）。
+   *
+   * スプリント情報とそのスプリントのタスク（各タスクは `_etag` を本文に持つ）を返す。
+   * `todo` / `doing` / `done` の 3 カラムへの振り分けは `status` からの導出のため、画面側で
+   * 束ねる（サーバーは並びだけ保証する — D-20）。ボード操作（移動・ブロック）は `TaskService`
+   * の `PATCH /tasks` を通し、その `If-Match` にここで得た各タスクの `_etag` を使う。
+   */
+  board(productId: string, sprintId: string): Observable<Board> {
+    return this.http.get<Board>(
+      `${this.base(productId)}/${encodeURIComponent(sprintId)}/board`,
+    );
   }
 
   /**

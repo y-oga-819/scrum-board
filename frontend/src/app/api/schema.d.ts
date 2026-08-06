@@ -210,6 +210,29 @@ export interface paths {
         patch: operations["update_api_products__product_id__sprints__sprint_id__patch"];
         trace?: never;
     };
+    "/api/products/{product_id}/sprints/{sprint_id}/board": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Board
+         * @description ボードを 1 往復返す。スプリント情報＋そのスプリントのタスク（各要素に ``_etag``）。
+         *
+         *     スプリントが存在しない／論理削除済みなら 404（存在を漏らさない）。タスクは ``sprintId``
+         *     が一致するもの（pbi・team を問わない）を ``rank, id`` 順で返す。
+         */
+        get: operations["read_board_api_products__product_id__sprints__sprint_id__board_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/products/{product_id}/sprints/{sprint_id}/pbis/{pbi_id}": {
         parameters: {
             query?: never;
@@ -391,6 +414,67 @@ export interface components {
          *     ``_etag`` を足す（集約の各要素が版を本文で持つのは BacklogPbi と同じ理由 — D-20）。
          */
         BacklogTask: {
+            /** Etag */
+            _etag: string;
+            /** Assigneeid */
+            assigneeId: string | null;
+            /** Blockedreason */
+            blockedReason: string;
+            /** Completedat */
+            completedAt: string | null;
+            /** Createdat */
+            createdAt: string;
+            /** Createdby */
+            createdBy: string;
+            /** Id */
+            id: string;
+            /** Isblocked */
+            isBlocked: boolean;
+            /** Isdeleted */
+            isDeleted: boolean;
+            /** Memo */
+            memo: string;
+            /** Pbiid */
+            pbiId: string | null;
+            /** Productid */
+            productId: string;
+            /** Rank */
+            rank: string | null;
+            /** Sprintid */
+            sprintId: string | null;
+            status: components["schemas"]["TaskStatus"];
+            taskType: components["schemas"]["TaskType"];
+            /** Title */
+            title: string;
+            /** Todo */
+            todo: string;
+            /** Type */
+            type: string;
+            /** Updatedat */
+            updatedAt: string;
+            /** Updatedby */
+            updatedBy: string;
+        };
+        /**
+         * BoardResponse
+         * @description スプリント画面の集約応答（B-23・D-20）。
+         *
+         *     ``sprint`` はボード見出しの表示に使う（この画面ではスプリント自身は更新しないため
+         *     ``_etag`` は持たせない。編集導線が要るのは終了処理 B-25）。``tasks`` はこのスプリントに
+         *     属するタスクを ``rank, id`` 順で並べたもの（各要素が ``_etag`` を持つ）。進捗集計
+         *     （2本バー）は B-24 がここに ``progress`` を足すため**オブジェクトで包む**。
+         */
+        BoardResponse: {
+            sprint: components["schemas"]["Sprint"];
+            /** Tasks */
+            tasks: components["schemas"]["BoardTask"][];
+        };
+        /**
+         * BoardTask
+         * @description ボードに並ぶタスク。単一 GET の :class:`~app.api.tasks.Task` に ``_etag`` を足す
+         *     （集約の各要素が版を本文で持つのは BacklogTask と同じ理由 — D-20）。
+         */
+        BoardTask: {
             /** Etag */
             _etag: string;
             /** Assigneeid */
@@ -1785,6 +1869,74 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    read_board_api_products__product_id__sprints__sprint_id__board_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sprint_id: string;
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BoardResponse"];
+                };
+            };
+            /** @description Problem */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
             /** @description Problem */

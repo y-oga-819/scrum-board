@@ -1,0 +1,95 @@
+<main class="board">
+  <header class="board-header">
+    <div>
+      <h1>スプリントボード</h1>
+      @if (selectedProduct(); as product) {
+        <p class="product">{{ product.name }}</p>
+      }
+    </div>
+    <a class="home-link" routerLink="/">ホームへ</a>
+  </header>
+
+  @if (errorMessage()) {
+    <p class="error" role="alert">{{ errorMessage() }}</p>
+  }
+
+  @switch (state()) {
+    @case ('loading') {
+      <p class="hint">読み込み中…</p>
+    }
+    @case ('no-product') {
+      <p class="hint">
+        どのプロダクトにも属していません。管理者に招待を依頼してください（PBI <code>B-10</code>）。
+      </p>
+    }
+    @case ('no-sprint') {
+      <p class="hint">
+        スプリントがありません。バックログ画面のプランニングから作成してください（PBI
+        <code>B-22</code>）。
+      </p>
+    }
+    @case ('error') {
+      <p class="hint">再読み込みしてください。</p>
+    }
+    @case ('ready') {
+      @if (board(); as current) {
+        <div class="toolbar">
+          <label class="sprint-select">
+            <span>スプリント</span>
+            <select (change)="selectSprint($event)">
+              @for (sprint of sprints(); track sprint.id) {
+                <option [value]="sprint.id" [selected]="sprint.id === selectedSprintId()">
+                  スプリント {{ sprint.number }}（{{ sprint.status }}）
+                </option>
+              }
+            </select>
+          </label>
+          @if (current.sprint.goal) {
+            <p class="goal">ゴール: {{ current.sprint.goal }}</p>
+          }
+        </div>
+
+        <div class="columns">
+          @for (column of columns; track column.status) {
+            <section class="column">
+              <h2>{{ column.label }}</h2>
+              <!-- カラムは role=list。ドロップで status を移す（D-20 の状態語彙）。
+                   ドラッグ移動と 412 の再操作は board.ts が持つ（D-24）。 -->
+              <ul
+                class="column-drop"
+                [attr.aria-label]="column.label"
+                (dragover)="onDragOver($event)"
+                (drop)="onDrop(column.status)"
+              >
+                @for (task of tasksByStatus().get(column.status); track task.id) {
+                  <li
+                    class="task-card"
+                    [class.blocked]="task.isBlocked"
+                    [attr.aria-label]="task.title"
+                    draggable="true"
+                    (dragstart)="onDragStart(task)"
+                    (dragend)="onDragEnd()"
+                  >
+                    <span class="task-title">{{ task.title }}</span>
+                    @if (task.isBlocked) {
+                      <span class="blocked-badge">ブロック中</span>
+                    }
+                    <button
+                      type="button"
+                      class="block-toggle"
+                      draggable="false"
+                      [attr.aria-pressed]="task.isBlocked"
+                      (click)="toggleBlocked(task)"
+                    >
+                      {{ task.isBlocked ? 'ブロック解除' : 'ブロック' }}
+                    </button>
+                  </li>
+                }
+              </ul>
+            </section>
+          }
+        </div>
+      }
+    }
+  }
+</main>
