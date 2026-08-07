@@ -63,8 +63,98 @@
                 スプリントを終了
               </button>
             }
+            <!-- デイリースクラムをこの画面だけで完結させる（M6・B-27）。開くと当日のノートを
+                 get-or-create し、アジェンダと議事録を編集できる。 -->
+            <button
+              type="button"
+              class="secondary"
+              [attr.aria-pressed]="dailyOpen()"
+              (click)="dailyOpen() ? closeDaily() : openDaily()"
+            >
+              {{ dailyOpen() ? 'デイリーを閉じる' : 'デイリー' }}
+            </button>
           </div>
         </div>
+
+        <!-- デイリーパネル（B-27・D-27）。その日（Asia/Tokyo の「今日」）のアジェンダと議事録を
+             編集する。1日1ドキュメント（id は (スプリント, 日付) から決定的）。保存は If-Match で
+             楽観排他し、版がずれたら黙って上書きせず読み直す（D-24）。 -->
+        @if (dailyOpen()) {
+          <section class="daily-panel" aria-label="デイリーノート">
+            <div class="daily-head">
+              <h2>デイリー</h2>
+              <span class="daily-date">{{ dailyDate() }}</span>
+            </div>
+
+            @if (dailyMessage()) {
+              <p class="error" role="alert">{{ dailyMessage() }}</p>
+            }
+
+            <div class="daily-section">
+              <h3>朝会アジェンダ</h3>
+              @if (dailyAgenda().length > 0) {
+                <ul class="agenda-list">
+                  @for (item of dailyAgenda(); track item.id) {
+                    <li class="agenda-item">
+                      <input
+                        type="checkbox"
+                        [checked]="item.done"
+                        [attr.aria-label]="item.text || 'アジェンダ項目'"
+                        (change)="toggleAgendaItem(item.id, $any($event.target).checked)"
+                      />
+                      <input
+                        type="text"
+                        class="agenda-text"
+                        placeholder="話す項目"
+                        [value]="item.text"
+                        (input)="editAgendaText(item.id, $any($event.target).value)"
+                      />
+                      <button
+                        type="button"
+                        class="agenda-remove"
+                        aria-label="項目を削除"
+                        (click)="removeAgendaItem(item.id)"
+                      >
+                        削除
+                      </button>
+                    </li>
+                  }
+                </ul>
+              } @else {
+                <p class="hint">まだアジェンダはありません。</p>
+              }
+              <button type="button" class="secondary" (click)="addAgendaItem()">
+                アジェンダを追加
+              </button>
+            </div>
+
+            <div class="daily-section">
+              <h3>議事録</h3>
+              <textarea
+                class="minutes"
+                rows="8"
+                aria-label="議事録"
+                placeholder="議事録（Markdown）"
+                [value]="dailyMinutes()"
+                (input)="onMinutesInput($any($event.target).value)"
+              ></textarea>
+            </div>
+
+            <div class="daily-actions">
+              <button
+                type="button"
+                class="primary"
+                [disabled]="dailySaving()"
+                (click)="saveDaily()"
+              >
+                {{ dailySaving() ? '保存中…' : '保存' }}
+              </button>
+              @if (dailySaved()) {
+                <span class="saved-notice" role="status">保存しました</span>
+              }
+            </div>
+          </section>
+        }
 
         <!-- 終了処理の持ち越しプレビュー（B-25・D-20）。締めると次スプリントへ移る未完了タスクを
              見せてから確定する。完了タスクは持ち越さない（I-5）。強制も警告もせず事実だけ（P-1）。 -->

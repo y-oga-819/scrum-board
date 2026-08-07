@@ -352,4 +352,91 @@ describe('BoardPage', () => {
     const dialog = (fixture.nativeElement as HTMLElement).querySelector('.close-dialog');
     expect(dialog!.textContent).toContain('持ち越し先のスプリントがありません');
   });
+
+  // --- デイリーパネル（B-27・D-27） --------------------------------------------
+
+  /** 日付は Asia/Tokyo の「今日」で動的なので、URL の前方一致で拾う（日付に結合しない）。 */
+  function expectDailyGet(sprintId: string) {
+    return httpMock.expectOne((req) => req.url.startsWith(`${BASE}/sprints/${sprintId}/daily/`));
+  }
+
+  it('opens the daily panel and get-or-creates today\'s note (ETag from header)', () => {
+    const fixture = render([sprint('spr_1', 1, 'active')], board('spr_1', []));
+
+    button(fixture, 'デイリー')!.click();
+    // 開くと当日のノートを get-or-create する（無ければサーバーが空を作って返す — D-27）。
+    const get = expectDailyGet('spr_1');
+    expect(get.request.method).toBe('GET');
+    get.flush(
+      { id: 'dly_spr_1_x', agenda: [], minutes: '既存の議事録' },
+      { headers: { ETag: '"d1"' } },
+    );
+    fixture.detectChanges();
+
+    const panel = (fixture.nativeElement as HTMLElement).querySelector('.daily-panel');
+    expect(panel).not.toBeNull();
+    expect(panel!.querySelector<HTMLTextAreaElement>('.minutes')!.value).toBe('既存の議事録');
+  });
+
+  it('saves the daily note via PATCH with If-Match, dropping empty agenda rows', () => {
+    const fixture = render([sprint('spr_1', 1, 'active')], board('spr_1', []));
+    button(fixture, 'デイリー')!.click();
+    expectDailyGet('spr_1').flush(
+      { id: 'dly_spr_1_x', agenda: [], minutes: '' },
+      { headers: { ETag: '"d1"' } },
+    );
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+
+    // アジェンダを1件足してテキストを入れ、議事録も書く。
+    button(fixture, 'アジェンダを追加')!.click();
+    fixture.detectChanges();
+    const text = host.querySelector<HTMLInputElement>('.agenda-text')!;
+    text.value = '昨日の進捗';
+    text.dispatchEvent(new Event('input'));
+    const minutes = host.querySelector<HTMLTextAreaElement>('.minutes')!;
+    minutes.value = '## 決定事項';
+    minutes.dispatchEvent(new Event('input'));
+
+    button(fixture, '保存')!.click();
+    const patch = expectDailyGet('spr_1');
+    expect(patch.request.method).toBe('PATCH');
+    expect(patch.request.headers.get('If-Match')).toBe('"d1"');
+    expect(patch.request.body.minutes).toBe('## 決定事項');
+    expect(patch.request.body.agenda.length).toBe(1);
+    expect(patch.request.body.agenda[0].text).toBe('昨日の進捗');
+    patch.flush(
+      { id: 'dly_spr_1_x', agenda: patch.request.body.agenda, minutes: '## 決定事項' },
+      { headers: { ETag: '"d2"' } },
+    );
+    fixture.detectChanges();
+
+    expect(host.querySelector('.saved-notice')?.textContent).toContain('保存しました');
+  });
+
+  it('on 412 shows a message and reloads the daily note (D-24)', () => {
+    const fixture = render([sprint('spr_1', 1, 'active')], board('spr_1', []));
+    button(fixture, 'デイリー')!.click();
+    expectDailyGet('spr_1').flush(
+      { id: 'dly_spr_1_x', agenda: [], minutes: '' },
+      { headers: { ETag: '"d1"' } },
+    );
+    fixture.detectChanges();
+
+    button(fixture, '保存')!.click();
+    expectDailyGet('spr_1').flush(
+      { type: 't', title: 'conflict' },
+      { status: 412, statusText: 'Precondition Failed' },
+    );
+    // 黙って上書きせず最新を読み直す（D-24）。
+    expectDailyGet('spr_1').flush(
+      { id: 'dly_spr_1_x', agenda: [], minutes: '他者の議事録' },
+      { headers: { ETag: '"d2"' } },
+    );
+    fixture.detectChanges();
+
+    const panel = (fixture.nativeElement as HTMLElement).querySelector('.daily-panel')!;
+    expect(panel.querySelector('.error')?.textContent).toContain('ほかの人がこのノートを更新');
+    expect(panel.querySelector<HTMLTextAreaElement>('.minutes')!.value).toBe('他者の議事録');
+  });
 });

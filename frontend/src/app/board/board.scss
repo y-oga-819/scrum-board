@@ -358,3 +358,126 @@
     }
   }
 }
+
+// デイリーパネル（B-27・D-27）。当日のアジェンダと議事録を編集する。ダイアログ相当のパネル。
+.daily-panel {
+  margin: 0 0 1.5rem;
+  padding: 1.1rem 1.2rem;
+  background: #fbfbfc;
+  border: 1px solid #d7dce2;
+  border-radius: 8px;
+
+  .daily-head {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+
+    h2 {
+      margin: 0;
+      font-size: 1.05rem;
+    }
+
+    .daily-date {
+      color: #6b7079;
+      font-size: 0.9rem;
+      font-variant-numeric: tabular-nums;
+    }
+  }
+
+  .daily-section {
+    margin-bottom: 1rem;
+
+    h3 {
+      margin: 0 0 0.5rem;
+      font-size: 0.9rem;
+      color: #4a4f57;
+    }
+  }
+
+  .agenda-list {
+    list-style: none;
+    margin: 0 0 0.6rem;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .agenda-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+
+    .agenda-text {
+      flex: 1 1 auto;
+      min-width: 0;
+      padding: 0.35rem 0.5rem;
+      font: inherit;
+      font-size: 0.9rem;
+      border: 1px solid #cfd4da;
+      border-radius: 6px;
+      background: #fff;
+    }
+
+    .agenda-remove {
+      flex: none;
+      font: inherit;
+      font-size: 0.75rem;
+      color: #4a4f57;
+      background: transparent;
+      border: 1px solid #cfd4da;
+      border-radius: 6px;
+      padding: 0.2rem 0.5rem;
+      cursor: pointer;
+
+      &:hover {
+        background: #eceef1;
+      }
+    }
+  }
+
+  .minutes {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.5rem 0.6rem;
+    font: inherit;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    border: 1px solid #cfd4da;
+    border-radius: 6px;
+    background: #fff;
+    resize: vertical;
+  }
+
+  .daily-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .primary {
+    padding: 0.5rem 1.1rem;
+    font: inherit;
+    font-size: 0.9rem;
+    color: #fff;
+    background: #1f6feb;
+    border: 1px solid #1a63d4;
+    border-radius: 6px;
+    cursor: pointer;
+
+    &:hover {
+      background: #1a63d4;
+    }
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
+  }
+
+  .saved-notice {
+    color: #24506b;
+    font-size: 0.85rem;
+  }
+}
