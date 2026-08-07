@@ -1,4 +1,20 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+
+/**
+ * 「スプリントを作成」を押し、作成された新スプリントの id を **`POST /sprints` の応答本文から
+ * 直接**取り出す。UI のセレクタ更新は非同期で、押した直後に値を読むと更新前を拾う（前回
+ * s1===s2 で落ちた原因）。応答から取れば描画タイミングに依存せず確実。
+ */
+async function createSprintAndCaptureId(page: Page): Promise<string> {
+  const [response] = await Promise.all([
+    page.waitForResponse(
+      (r) => r.request().method() === 'POST' && new URL(r.url()).pathname.endsWith('/sprints'),
+    ),
+    page.getByRole('button', { name: 'スプリントを作成' }).click(),
+  ]);
+  const body = (await response.json()) as { id: string };
+  return body.id;
+}
 
 /**
  * 主要フロー 4/5: スプリント終了処理（B-25）。
@@ -35,19 +51,23 @@ test('スプリント終了で未完了だけが持ち越され、完了タス�
     await expect(row.getByText(taskTitle)).toBeVisible();
   }
 
-  // プランニング右ペインで締める対象 S1 と持ち越し先 S2 を作る。S1 を選んだ状態で PBI を
-  // 取り込み、配下の未完了タスク（2件）に S1 の sprintId を付ける（B-22）。
+  // プランニング右ペインで締める対象 S1 と持ち越し先 S2 を作る。作成は非同期でセレクタを
+  // 更新するので、**オプションが1件増えるのを待ってから**選択中の id（＝作成された新スプリント）を
+  // 控える（作成直後に読むと更新前の値を拾う — 前回 s1===s2 で落ちた原因）。partition には他
+  // フローのスプリントも残るため id で扱う（EX-1/D-22）。
   await page.getByRole('button', { name: 'プランニング' }).click();
-  await page.getByRole('button', { name: 'スプリントを作成' }).click();
-  const s1 = await page.locator('.planning-pane .sprint-select select').inputValue();
+  const planningSelect = page.locator('.planning-pane .sprint-select select');
+  const s1 = await createSprintAndCaptureId(page);
+  const s2 = await createSprintAndCaptureId(page);
+  expect(s1).not.toBe(s2);
+
+  // 取り込み先を S1 に戻し（作成直後は S2 が選択中）、PBI を取り込む。配下の未完了2タスクに
+  // S1 の sprintId が付く（B-22）。取り込みの確定はチェック状態＝配下タスクの sprintId からの
+  // 導出（D-08）が S1 で true になるのを待って確かめる。
+  await planningSelect.selectOption(s1);
   const pbiCheckbox = page.getByRole('checkbox', { name: pbiTitle });
   await pbiCheckbox.check();
-  // 取り込みが確定するのを待つ（チェック状態は配下タスクの sprintId から導出される — D-08）。
   await expect(pbiCheckbox).toBeChecked();
-  // 持ち越し先 S2 を作る（作成すると選択は S2 に移るが、タスクは S1 に残る）。
-  await page.getByRole('button', { name: 'スプリントを作成' }).click();
-  const s2 = await page.locator('.planning-pane .sprint-select select').inputValue();
-  expect(s1).not.toBe(s2);
 
   // ボードへ移り S1 を選ぶ。取り込んだ2タスクが未着手に並ぶまで待つ（取り込みの確定＝
   // ボードのロード完了。ここを待たずに操作すると再描画レースになる — フロー③と同じ）。
