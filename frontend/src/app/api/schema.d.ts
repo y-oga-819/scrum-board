@@ -274,6 +274,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/products/{product_id}/sprints/{sprint_id}/daily/{date}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Or Create
+         * @description その日のノートを返す（無ければ空のノートを作って返す＝get-or-create。D-27）。
+         *
+         *     ``date`` の形が不正なら 422、スプリントが存在しない／論理削除済みなら 404（存在を漏らさない）。
+         */
+        get: operations["get_or_create_api_products__product_id__sprints__sprint_id__daily__date__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update
+         * @description アジェンダ・議事録を部分更新する（``If-Match`` 必須。欠落 428・不一致 412）。
+         *
+         *     ノートは先に ``GET`` で存在させる前提（get-or-create）。無ければ 404。``date`` の形が
+         *     不正なら 422。版がずれれば 412——フロントは黙って上書きせず最新を読み直す（D-24）。
+         */
+        patch: operations["update_api_products__product_id__sprints__sprint_id__daily__date__patch"];
+        trace?: never;
+    };
     "/api/products/{product_id}/sprints/{sprint_id}/pbis/{pbi_id}": {
         parameters: {
             query?: never;
@@ -380,6 +409,23 @@ export interface components {
              * @default false
              */
             checked: boolean;
+            /** Id */
+            id: string;
+            /** Text */
+            text: string;
+        };
+        /**
+         * AgendaItem
+         * @description 朝会アジェンダの1項目（提案書 04章 ``{"id","text","done"}``）。
+         *
+         *     ``id`` はクライアントが採番する不透明な識別子（B-18 の完了条件チェックリストと同じ）。
+         */
+        AgendaItem: {
+            /**
+             * Done
+             * @default false
+             */
+            done: boolean;
             /** Id */
             id: string;
             /** Text */
@@ -603,6 +649,51 @@ export interface components {
             /** Carriedover */
             carriedOver: number;
             sprint: components["schemas"]["Sprint"];
+        };
+        /**
+         * DailyNote
+         * @description デイリーノートの応答表現（提案書 04章のフィールド）。
+         *
+         *     単一ドキュメント応答なので ``_etag`` は本文に載せず ``ETag`` ヘッダで返す（``extra='ignore'``
+         *     で捨てる。集約 GET の各要素が ``_etag`` を本文に持つのとは非対称 — D-20）。
+         */
+        DailyNote: {
+            /** Agenda */
+            agenda: components["schemas"]["AgendaItem"][];
+            /** Createdat */
+            createdAt: string;
+            /** Createdby */
+            createdBy: string;
+            /** Date */
+            date: string;
+            /** Id */
+            id: string;
+            /** Isdeleted */
+            isDeleted: boolean;
+            /** Minutes */
+            minutes: string;
+            /** Productid */
+            productId: string;
+            /** Sprintid */
+            sprintId: string;
+            /** Type */
+            type: string;
+            /** Updatedat */
+            updatedAt: string;
+            /** Updatedby */
+            updatedBy: string;
+        };
+        /**
+         * DailyNoteUpdate
+         * @description ノート更新の入力（部分更新）。**送られたフィールドだけ**を反映する。
+         *
+         *     ``sprintId`` / ``date`` は載せない（id を決める鍵であり、後から動かさない — D-27）。
+         */
+        DailyNoteUpdate: {
+            /** Agenda */
+            agenda?: components["schemas"]["AgendaItem"][] | null;
+            /** Minutes */
+            minutes?: string | null;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -2192,6 +2283,166 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Problem */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_or_create_api_products__product_id__sprints__sprint_id__daily__date__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sprint_id: string;
+                date: string;
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DailyNote"];
+                };
+            };
+            /** @description Problem */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_api_products__product_id__sprints__sprint_id__daily__date__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sprint_id: string;
+                date: string;
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DailyNoteUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DailyNote"];
+                };
+            };
+            /** @description Problem */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             /** @description Problem */

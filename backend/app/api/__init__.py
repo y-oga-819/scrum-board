@@ -8,6 +8,7 @@
 * :mod:`.sprints` — スプリントの CRUD（``/api/products/{pid}/sprints``。B-21）
 * :mod:`.planning` — プランニング（``/sprints/{sid}/pbis/{pbiId}`` 取り込み／外す。B-22）
 * :mod:`.sprint_close` — スプリント終了処理（``/sprints/{sid}/close`` プレビュー／確定。B-25）
+* :mod:`.daily_notes` — デイリーノート（``/sprints/{sid}/daily/{date}`` の読み書き。B-27）
 * :mod:`.backlog` — プロダクトバックログ画面の集約 GET（``/backlog``。B-17）
 * :mod:`.board` — スプリント画面のボードの集約 GET（``/sprints/{sid}/board``。B-23）
 
@@ -23,7 +24,17 @@ from collections.abc import Sequence
 
 from fastapi import APIRouter
 
-from . import backlog, board, meta, pbis, planning, sprint_close, sprints, tasks
+from . import (
+    backlog,
+    board,
+    daily_notes,
+    meta,
+    pbis,
+    planning,
+    sprint_close,
+    sprints,
+    tasks,
+)
 
 # main.py が順に include するルータ群。meta（横断）→ リソース別 → ドメイン操作 → 画面集約の
 # 順に並べる。
@@ -34,6 +45,7 @@ routers: Sequence[APIRouter] = (
     sprints.router,
     planning.router,
     sprint_close.router,
+    daily_notes.router,
     backlog.router,
     board.router,
 )
