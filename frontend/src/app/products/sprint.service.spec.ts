@@ -61,4 +61,33 @@ describe('SprintService', () => {
 
     httpMock.expectOne(`${BASE}/sprints/spr%2Fodd/pbis/pbi%201`).flush(null);
   });
+
+  it('updates a sprint via PATCH .../{id} with If-Match (status transition)', () => {
+    service.update(PRODUCT, 'spr_1', '"etag-1"', { status: 'active' }).subscribe();
+
+    const req = httpMock.expectOne(`${BASE}/sprints/spr_1`);
+    expect(req.request.method).toBe('PATCH');
+    expect(req.request.body).toEqual({ status: 'active' });
+    expect(req.request.headers.get('If-Match')).toBe('"etag-1"');
+    req.flush({});
+  });
+
+  it('previews the carry-over via GET .../close/preview', () => {
+    service.closePreview(PRODUCT, 'spr_1').subscribe();
+
+    const req = httpMock.expectOne(`${BASE}/sprints/spr_1/close/preview`);
+    expect(req.request.method).toBe('GET');
+    req.flush({ tasks: [] });
+  });
+
+  it('closes a sprint via POST .../close with nextSprintId (no If-Match)', () => {
+    service.close(PRODUCT, 'spr_1', 'spr_2').subscribe();
+
+    const req = httpMock.expectOne(`${BASE}/sprints/spr_1/close`);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ nextSprintId: 'spr_2' });
+    // 複数タスクを束ねるサーバー所有の操作のため単一リソースの版は載せない（D-20）。
+    expect(req.request.headers.has('If-Match')).toBe(false);
+    req.flush({ sprint: {}, carriedOver: 0 });
+  });
 });

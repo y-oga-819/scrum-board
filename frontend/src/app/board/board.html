@@ -12,6 +12,9 @@
   @if (errorMessage()) {
     <p class="error" role="alert">{{ errorMessage() }}</p>
   }
+  @if (notice()) {
+    <p class="notice" role="status">{{ notice() }}</p>
+  }
 
   @switch (state()) {
     @case ('loading') {
@@ -47,7 +50,67 @@
           @if (current.sprint.goal) {
             <p class="goal">ゴール: {{ current.sprint.goal }}</p>
           }
+          <!-- スプリントのライフサイクル（開始→終了。M5 の「1 周回る」。B-25）。状態に応じて
+               片方だけ出す（planned なら開始・active なら終了）。強制はしない（P-1）。 -->
+          <div class="lifecycle">
+            @if (canActivate()) {
+              <button type="button" class="secondary" (click)="activateSprint()">
+                スプリントを開始
+              </button>
+            }
+            @if (canClose()) {
+              <button type="button" class="secondary" (click)="openClose()">
+                スプリントを終了
+              </button>
+            }
+          </div>
         </div>
+
+        <!-- 終了処理の持ち越しプレビュー（B-25・D-20）。締めると次スプリントへ移る未完了タスクを
+             見せてから確定する。完了タスクは持ち越さない（I-5）。強制も警告もせず事実だけ（P-1）。 -->
+        @if (closingOpen()) {
+          <section class="close-dialog" role="dialog" aria-label="持ち越しプレビュー">
+            <h2>持ち越しプレビュー</h2>
+            <p class="close-lead">
+              終了すると、次のスプリントへ<strong>未完了タスクだけ</strong>が持ち越されます。
+              完了タスクはこのスプリントに残ります。
+            </p>
+            @if (carryOver().length > 0) {
+              <ul class="carry-list" aria-label="持ち越されるタスク">
+                @for (task of carryOver(); track task.id) {
+                  <li>{{ task.title }}</li>
+                }
+              </ul>
+            } @else {
+              <p class="hint">持ち越す未完了タスクはありません。</p>
+            }
+
+            @if (closeTargets().length > 0) {
+              <label class="next-select">
+                <span>持ち越し先</span>
+                <select (change)="selectNextSprint($event)">
+                  @for (target of closeTargets(); track target.id) {
+                    <option [value]="target.id" [selected]="target.id === nextSprintId()">
+                      スプリント {{ target.number }}（{{ target.status }}）
+                    </option>
+                  }
+                </select>
+              </label>
+              <div class="close-actions">
+                <button type="button" class="primary" (click)="confirmClose()">確定</button>
+                <button type="button" class="secondary" (click)="cancelClose()">キャンセル</button>
+              </div>
+            } @else {
+              <p class="hint">
+                持ち越し先のスプリントがありません。バックログのプランニングから次のスプリントを
+                作成してください（PBI <code>B-22</code>）。
+              </p>
+              <div class="close-actions">
+                <button type="button" class="secondary" (click)="cancelClose()">閉じる</button>
+              </div>
+            }
+          </section>
+        }
 
         <!-- 進捗の2本バー（提案書 05章・B-24）。数字が主役、バーは従。目盛は両者で共通なので
              長さがそのまま件数比になる。警告色は使わず、色は種別（計画/チーム）の区別のみ

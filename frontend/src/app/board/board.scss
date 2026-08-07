@@ -259,3 +259,102 @@
     }
   }
 }
+
+// 中立な事実の通知（例: 「N 件を持ち越しました」）。警告色は使わない（P-1 / D-13）。
+.notice {
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.9rem;
+  color: #24506b;
+  background: #eef4f8;
+  border: 1px solid #cdddea;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+// スプリントのライフサイクル操作（開始・終了。B-25）。ツールバー内に置く。
+.lifecycle {
+  display: inline-flex;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+.secondary {
+  padding: 0.4rem 0.9rem;
+  font: inherit;
+  font-size: 0.85rem;
+  color: #24303a;
+  background: #fff;
+  border: 1px solid #cfd4da;
+  border-radius: 6px;
+  cursor: pointer;
+
+  &:hover {
+    background: #f0f2f5;
+  }
+}
+
+// 終了処理の持ち越しプレビュー（B-25・D-20）。ダイアログ相当のパネル。
+.close-dialog {
+  margin: 0 0 1.5rem;
+  padding: 1.1rem 1.2rem;
+  background: #fbfbfc;
+  border: 1px solid #d7dce2;
+  border-radius: 8px;
+
+  h2 {
+    margin: 0 0 0.5rem;
+    font-size: 1.05rem;
+  }
+
+  .close-lead {
+    margin: 0 0 0.75rem;
+    color: #4a4f57;
+    font-size: 0.9rem;
+    line-height: 1.6;
+  }
+
+  .carry-list {
+    margin: 0 0 0.9rem;
+    padding-left: 1.2rem;
+    color: #24303a;
+    font-size: 0.9rem;
+    line-height: 1.7;
+  }
+
+  .next-select {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.9rem;
+    font-size: 0.9rem;
+    color: #4a4f57;
+
+    select {
+      padding: 0.35rem 0.5rem;
+      font: inherit;
+      border: 1px solid #cfd4da;
+      border-radius: 6px;
+      background: #fff;
+    }
+  }
+
+  .close-actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .primary {
+    padding: 0.5rem 1.1rem;
+    font: inherit;
+    font-size: 0.9rem;
+    color: #fff;
+    background: #1f6feb;
+    border: 1px solid #1a63d4;
+    border-radius: 6px;
+    cursor: pointer;
+
+    &:hover {
+      background: #1a63d4;
+    }
+  }
+}

@@ -33,7 +33,14 @@ const BASE_URL = process.env.E2E_BASE_URL ?? 'http://localhost:8000';
 
 export default defineConfig({
   testDir: './e2e',
-  fullyParallel: true,
+  // 全 spec は **1 つのバックエンド + 1 つの Cosmos パーティション（`prd_test_<runId>`）** を
+  // 共有する（EX-1・D-22）。並列に走らせると (1) スプリントの状態（active/closed）が
+  // グローバルな共有状態になり、他フローの「実行中スプリントを既定表示」（board の
+  // `defaultSprintId`）が別テストの活性化に引きずられる、(2) 5 つのブラウザ文脈が同じ
+  // エミュレータを叩いてページロードがタイムアウトする、という干渉が起きる。数本の
+  // スイートなので **直列（workers: 1）** にして決定的にする（速度より安定を採る）。
+  fullyParallel: false,
+  workers: 1,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
