@@ -10,6 +10,9 @@ import { expect, test } from '@playwright/test';
  * ゲートの resolver）。既知の初期状態は `globalSetup` が `prd_test_<runId>` に seeding する。
  * スプリントはこのフロー内でプランニング右ペインから作る（seeding には積まない）。他フローと
  * 同じ partition を共有するため、タイトルはこのフロー固有にする（EX-1/D-22）。
+ *
+ * 各操作は状態を変えるたびに集約 GET を引き直す（D-24）。ボードの再描画レースを避けるため、
+ * **次の操作へ進む前に `expect(...)` で描画が落ち着くのを待つ**（フロー③ board.spec と同じ流儀）。
  */
 test('スプリント終了で未完了だけが持ち越され、完了タスクは動かない', async ({ page }) => {
   await page.goto('/backlog');
@@ -37,21 +40,32 @@ test('スプリント終了で未完了だけが持ち越され、完了タス�
   await page.getByRole('button', { name: 'プランニング' }).click();
   await page.getByRole('button', { name: 'スプリントを作成' }).click();
   const s1 = await page.locator('.planning-pane .sprint-select select').inputValue();
-  await page.getByRole('checkbox', { name: pbiTitle }).check();
+  const pbiCheckbox = page.getByRole('checkbox', { name: pbiTitle });
+  await pbiCheckbox.check();
+  // 取り込みが確定するのを待つ（チェック状態は配下タスクの sprintId から導出される — D-08）。
+  await expect(pbiCheckbox).toBeChecked();
+  // 持ち越し先 S2 を作る（作成すると選択は S2 に移るが、タスクは S1 に残る）。
   await page.getByRole('button', { name: 'スプリントを作成' }).click();
   const s2 = await page.locator('.planning-pane .sprint-select select').inputValue();
   expect(s1).not.toBe(s2);
 
-  // ボードへ移り S1 を選ぶ。planned なので開始（active）してから終了できる（M5 の1周）。
+  // ボードへ移り S1 を選ぶ。取り込んだ2タスクが未着手に並ぶまで待つ（取り込みの確定＝
+  // ボードのロード完了。ここを待たずに操作すると再描画レースになる — フロー③と同じ）。
   await page.goto('/board');
   await page.locator('.sprint-select select').selectOption(s1);
+  const todoColumn = page.getByRole('list', { name: '未着手' });
+  await expect(todoColumn).toContainText(doneTitle);
+  await expect(todoColumn).toContainText(keepTitle);
+
+  // planned なので開始（active）してから終了できる（M5 の1周）。開始はボードを引き直すので、
+  // 「スプリントを終了」が出る＝ active への遷移とロード完了を待ってから次へ進む。
   await page.getByRole('button', { name: 'スプリントを開始' }).click();
+  await expect(page.getByRole('button', { name: 'スプリントを終了' })).toBeVisible();
 
   // 完了タスクを done にする（このスプリントに凍結され、持ち越されないことを後で確かめる）。
-  await page
-    .getByRole('listitem', { name: doneTitle })
-    .dragTo(page.getByRole('list', { name: '完了' }));
-  await expect(page.getByRole('list', { name: '完了' })).toContainText(doneTitle);
+  const doneColumn = page.getByRole('list', { name: '完了' });
+  await page.getByRole('listitem', { name: doneTitle }).dragTo(doneColumn);
+  await expect(doneColumn).toContainText(doneTitle);
 
   // スプリントを終了 → 持ち越しプレビュー。未完了だけが並び、完了タスクは出ない（I-5）。
   await page.getByRole('button', { name: 'スプリントを終了' }).click();
